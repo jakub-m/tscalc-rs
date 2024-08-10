@@ -3,5 +3,7 @@ run:
 	echo 123ą | cargo run
 build:
 	cargo build
-.phony: build run
+test:
+	RUST_BACKTRACE=1 cargo test
+.phony: build run test
 

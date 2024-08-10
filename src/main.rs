@@ -9,18 +9,9 @@ struct ParserPointer<'a> {
     pos: usize,
 }
 
-//struct NumberNode<'a> {
-//    number: i32,
-//    pointer: &'a ParserPointer<'a>,
-//}
-
-// TODO implement "advance"
-// TODO implement returning arbitrary node
-
 fn main() {
     let stdin = io::stdin();
     let parser = FirstOf(&NumberParser, &LetterParser);
-    // let parser = LetterParser;
     for line in stdin.lock().lines() {
         let line = line.unwrap();
         let context = &mut ParserPointer {
@@ -36,19 +27,23 @@ fn main() {
                 }
             };
             println!("{:?}", new_context);
-            context.pos = new_context.pos; // how to reassign whole context?
+            context.pos = new_context.pos;
+            if context.pos == line.len() {
+                // TODO add is_end() method
+                break;
+            }
         }
     }
 }
 
 trait Parser {
-    fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, &'static str>;
+    fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, String>;
 }
 
 struct NumberParser;
 
 impl Parser for NumberParser {
-    fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, &'static str> {
+    fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, String> {
         let rest = &context.input[context.pos..];
         let mut offset = rest.len();
         let mut is_ok = false;
@@ -71,7 +66,7 @@ impl Parser for NumberParser {
                 pos: context.pos + offset,
             })
         } else {
-            Err("not a number")
+            Err(String::from("not a number"))
         }
     }
 }
@@ -79,7 +74,7 @@ impl Parser for NumberParser {
 struct LetterParser;
 
 impl Parser for LetterParser {
-    fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, &'static str> {
+    fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, String> {
         let rest = &context.input[context.pos..];
         let mut offset = rest.len();
         let mut is_ok = false;
@@ -102,7 +97,7 @@ impl Parser for LetterParser {
                 pos: context.pos + offset,
             })
         } else {
-            Err("not a number")
+            Err(String::from("not a letter"))
         }
     }
 }
@@ -110,7 +105,7 @@ impl Parser for LetterParser {
 struct FirstOf<'a>(&'a dyn Parser, &'a dyn Parser);
 
 impl<'a> Parser for FirstOf<'a> {
-    fn parse<'b>(&self, context: &'b ParserPointer) -> Result<ParserPointer<'b>, &'static str> {
+    fn parse<'b>(&self, context: &'b ParserPointer) -> Result<ParserPointer<'b>, String> {
         let a_result = self.0.parse(context);
         if a_result.is_ok() {
             return a_result;
@@ -119,7 +114,10 @@ impl<'a> Parser for FirstOf<'a> {
         if b_result.is_ok() {
             return b_result;
         }
-        return Err("No parser matched");
+        Err(format!(
+            "No parser matched for: {}",
+            &context.input[context.pos..] // TODO implement rest() method for ParserPointer.
+        ))
     }
 }
 

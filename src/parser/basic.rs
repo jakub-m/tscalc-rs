@@ -34,9 +34,9 @@ impl Parser for CharRangeParser {
 }
 
 #[allow(non_upper_case_globals)]
-pub const LetterParser: CharRangeParser = CharRangeParser('a', 'z');
+pub const LowerCaseLetter: CharRangeParser = CharRangeParser('a', 'z');
 #[allow(non_upper_case_globals)]
-pub const NumberParser: CharRangeParser = CharRangeParser('0', '9');
+pub const Digit: CharRangeParser = CharRangeParser('0', '9');
 
 pub struct FirstOf<'a>(pub &'a dyn Parser, pub &'a dyn Parser);
 
@@ -55,9 +55,9 @@ impl<'a> Parser for FirstOf<'a> {
 }
 
 /// A parser that collapses many matches of the underlying parser into a single match.
-pub struct CollapseParser<'a>(pub &'a dyn Parser);
+pub struct Collapse<'a>(pub &'a dyn Parser);
 
-impl<'a> Parser for CollapseParser<'a> {
+impl<'a> Parser for Collapse<'a> {
     fn parse<'b>(&self, pointer: &'b InputPointer) -> Result<Match<'b>, String> {
         let mut current_pos: usize = pointer.pos;
         loop {
@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn letter_parser_with_letter_is_ok() {
-        let parser = LetterParser;
+        let parser = LowerCaseLetter;
         let input = String::from("x");
         let pp = InputPointer {
             input: &input,
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn letter_parser_with_garbage_is_not_ok() {
-        let parser = LetterParser;
+        let parser = LowerCaseLetter;
         let input = String::from("1");
         let pp = InputPointer {
             input: &input,

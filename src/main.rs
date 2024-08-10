@@ -1,14 +1,13 @@
 use std::io::{self, BufRead};
 
 mod parser;
-use parser::*;
+use parser::{InputPointer, Parser};
 
 fn main() {
     let stdin = io::stdin();
-    //let parser = FirstOf(&NumberParser, &LetterParser);
-    let parser = &FirstOf(
-        &CollapseParser(&NumberParser),
-        &CollapseParser(&LetterParser),
+    let parser = &parser::FirstOf(
+        &parser::Collapse(&parser::Digit),
+        &parser::Collapse(&parser::LowerCaseLetter),
     );
 
     for line in stdin.lock().lines() {

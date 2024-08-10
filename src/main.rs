@@ -1,20 +1,23 @@
 use std::io::{self, BufRead};
 
-/// The context passed around between the parsers.
+/// The context passed around between the parsers, pointing where in the input is the parser now.
 #[derive(Debug)]
-struct ParserPointer<'a> {
-    /// The input string
+struct InputPointer<'a> {
+    /// The input string.
     input: &'a String,
-    /// Position in the input string
+    /// Position in the input string.
     pos: usize,
 }
 
-impl<'a> ParserPointer<'a> {
+impl<'a> InputPointer<'a> {
     fn is_end(&self) -> bool {
-        self.pos == self.input.len()
+        self.pos >= self.input.len()
     }
 
     fn rest(&self) -> &str {
+        if self.is_end() {
+            return &"";
+        }
         &self.input[self.pos..]
     }
 }
@@ -24,7 +27,7 @@ fn main() {
     let parser = FirstOf(&NumberParser, &LetterParser);
     for line in stdin.lock().lines() {
         let line = line.unwrap();
-        let context = &mut ParserPointer {
+        let context = &mut InputPointer {
             input: &line,
             pos: 0,
         };
@@ -46,14 +49,14 @@ fn main() {
 }
 
 trait Parser {
-    fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, String>;
+    fn parse<'a>(&self, context: &'a InputPointer) -> Result<InputPointer<'a>, String>;
 }
 
 /// CharRangeParser checks if the input char is between the two chars specified in the constructor (inclusive).
 struct CharRangeParser(char, char);
 
 impl Parser for CharRangeParser {
-    fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, String> {
+    fn parse<'a>(&self, context: &'a InputPointer) -> Result<InputPointer<'a>, String> {
         let mut offset = context.rest().len();
         let mut is_ok = false;
         for (i, c) in context.rest().char_indices() {
@@ -70,7 +73,7 @@ impl Parser for CharRangeParser {
             }
         }
         if is_ok {
-            Ok(ParserPointer {
+            Ok(InputPointer {
                 input: context.input,
                 pos: context.pos + offset,
             })
@@ -88,7 +91,7 @@ const NumberParser: CharRangeParser = CharRangeParser('0', '9');
 struct FirstOf<'a>(&'a dyn Parser, &'a dyn Parser);
 
 impl<'a> Parser for FirstOf<'a> {
-    fn parse<'b>(&self, context: &'b ParserPointer) -> Result<ParserPointer<'b>, String> {
+    fn parse<'b>(&self, context: &'b InputPointer) -> Result<InputPointer<'b>, String> {
         let a_result = self.0.parse(context);
         if a_result.is_ok() {
             return a_result;
@@ -106,10 +109,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn number_parser_with_number_is_ok() {
-        let parser = NumberParser;
-        let input = String::from("1");
-        let pp = ParserPointer {
+    fn letter_parser_with_letter_is_ok() {
+        let parser = LetterParser;
+        let input = String::from("x");
+        let pp = InputPointer {
             input: &input,
             pos: 0,
         };
@@ -118,10 +121,10 @@ mod tests {
     }
 
     #[test]
-    fn number_parser_with_garbage_is_not_ok() {
-        let parser = NumberParser;
-        let input = String::from("x");
-        let pp = ParserPointer {
+    fn letter_parser_with_garbage_is_not_ok() {
+        let parser = LetterParser;
+        let input = String::from("1");
+        let pp = InputPointer {
             input: &input,
             pos: 0,
         };

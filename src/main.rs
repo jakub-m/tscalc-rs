@@ -1,8 +1,7 @@
 use std::io::{self, BufRead};
 
 mod parser;
-use parser::basic::*;
-use parser::core::*;
+use parser::*;
 
 fn main() {
     let stdin = io::stdin();

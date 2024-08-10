@@ -1,3 +1,5 @@
+// Basic parsers.
+
 use super::core::*;
 
 /// CharRangeParser checks if the input char is between the two chars specified in the constructor (inclusive).

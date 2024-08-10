@@ -1,3 +1,5 @@
+// Core interfaces and structures.
+
 pub trait Parser {
     fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<Match<'a>, String>;
 }

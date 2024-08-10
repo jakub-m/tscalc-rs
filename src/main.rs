@@ -10,10 +10,12 @@ struct InputPointer<'a> {
 }
 
 impl<'a> InputPointer<'a> {
+    /// Check if the pointer is at the end of the input.
     fn is_end(&self) -> bool {
         self.pos >= self.input.len()
     }
 
+    /// Get the remainder of the input (at pos).
     fn rest(&self) -> &str {
         if self.is_end() {
             return &"";
@@ -21,6 +23,7 @@ impl<'a> InputPointer<'a> {
         &self.input[self.pos..]
     }
 
+    /// Advance the pointer by n bytes.
     fn advance(&self, n: usize) -> InputPointer<'a> {
         return InputPointer {
             input: self.input,
@@ -28,16 +31,18 @@ impl<'a> InputPointer<'a> {
         };
     }
 
-    fn get_next_n_chars(&self, offset: usize) -> &str {
+    /// Peek next N characters.
+    fn peek_n(&self, offset: usize) -> &str {
         // TODO Add right bound.
         return &self.input[self.pos..self.pos + offset];
     }
 
-    fn at_pos(&self, p: usize) -> InputPointer<'a> {
-        let pos = if p > self.input.len() {
+    /// Return the pointer with pos set to specific value
+    fn at_pos(&self, pos: usize) -> InputPointer<'a> {
+        let pos = if pos > self.input.len() {
             self.input.len()
         } else {
-            p
+            pos
         };
         InputPointer {
             input: self.input,
@@ -111,7 +116,7 @@ impl Parser for CharRangeParser {
         if is_ok {
             Ok(Match {
                 pointer: pointer.advance(offset),
-                matched: pointer.get_next_n_chars(offset),
+                matched: pointer.peek_n(offset),
             })
         } else {
             Err(format!("Character not in [{0}, {1}]", self.0, self.1))

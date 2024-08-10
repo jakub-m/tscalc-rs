@@ -39,15 +39,15 @@ fn main() {
             pos: 0,
         };
         loop {
-            let new_pointer = match parser.parse(&pointer) {
-                Ok(c) => c,
+            let new_match = match parser.parse(&pointer) {
+                Ok(m) => m,
                 Err(s) => {
                     println!("error! {}", s);
                     break;
                 }
             };
-            println!("{:?}", new_pointer);
-            pointer.pos = new_pointer.pos;
+            println!("{:?}", new_match);
+            pointer.pos = new_match.pointer.pos;
             if pointer.is_end() {
                 break;
             }
@@ -56,14 +56,20 @@ fn main() {
 }
 
 trait Parser {
-    fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<InputPointer<'a>, String>;
+    fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<Match<'a>, String>;
+}
+
+#[derive(Debug)]
+struct Match<'a> {
+    pointer: InputPointer<'a>,
+    //chars: &'a str,
 }
 
 /// CharRangeParser checks if the input char is between the two chars specified in the constructor (inclusive).
 struct CharRangeParser(char, char);
 
 impl Parser for CharRangeParser {
-    fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<InputPointer<'a>, String> {
+    fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<Match<'a>, String> {
         let mut offset = pointer.rest().len();
         let mut is_ok = false;
         for (i, c) in pointer.rest().char_indices() {
@@ -80,7 +86,9 @@ impl Parser for CharRangeParser {
             }
         }
         if is_ok {
-            Ok(pointer.advance(offset))
+            Ok(Match {
+                pointer: pointer.advance(offset),
+            })
         } else {
             Err(format!("Character not in [{0}, {1}]", self.0, self.1))
         }
@@ -95,7 +103,7 @@ const NumberParser: CharRangeParser = CharRangeParser('0', '9');
 struct FirstOf<'a>(&'a dyn Parser, &'a dyn Parser);
 
 impl<'a> Parser for FirstOf<'a> {
-    fn parse<'b>(&self, pointer: &'b InputPointer) -> Result<InputPointer<'b>, String> {
+    fn parse<'b>(&self, pointer: &'b InputPointer) -> Result<Match<'b>, String> {
         let a_result = self.0.parse(pointer);
         if a_result.is_ok() {
             return a_result;

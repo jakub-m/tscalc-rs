@@ -55,14 +55,18 @@ impl<'a> Parser for FirstOf<'a> {
 }
 
 /// A parser that collapses many matches of the underlying parser into a single match.
-pub struct Collapse<'a>(pub &'a dyn Parser);
+pub struct Collapse<'a> {
+    pub parser: &'a dyn Parser,
+    pub at_least: Option<u32>,
+    pub at_most: Option<u32>,
+}
 
 impl<'a> Parser for Collapse<'a> {
     fn parse<'b>(&self, pointer: &'b InputPointer) -> Result<Match<'b>, String> {
         let mut current_pos: usize = pointer.pos;
         loop {
             let current_pointer = pointer.at_pos(current_pos);
-            let m = self.0.parse(&current_pointer);
+            let m = self.parser.parse(&current_pointer);
             if m.is_ok() {
                 current_pos = m.unwrap().pointer.pos;
             } else {

@@ -6,8 +6,16 @@ use parser::{InputPointer, Parser};
 fn main() {
     let stdin = io::stdin();
     let parser = &parser::FirstOf(
-        &parser::Collapse(&parser::Digit),
-        &parser::Collapse(&parser::LowerCaseLetter),
+        &parser::Collapse {
+            parser: &parser::Digit,
+            at_least: None,
+            at_most: None,
+        },
+        &parser::Collapse {
+            parser: &parser::LowerCaseLetter,
+            at_least: None,
+            at_most: None,
+        },
     );
 
     for line in stdin.lock().lines() {

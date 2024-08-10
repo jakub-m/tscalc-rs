@@ -9,6 +9,16 @@ struct ParserPointer<'a> {
     pos: usize,
 }
 
+impl<'a> ParserPointer<'a> {
+    fn is_end(&self) -> bool {
+        self.pos == self.input.len()
+    }
+
+    fn rest(&self) -> &str {
+        &self.input[self.pos..]
+    }
+}
+
 fn main() {
     let stdin = io::stdin();
     let parser = FirstOf(&NumberParser, &LetterParser);
@@ -28,8 +38,7 @@ fn main() {
             };
             println!("{:?}", new_context);
             context.pos = new_context.pos;
-            if context.pos == line.len() {
-                // TODO add is_end() method
+            if context.is_end() {
                 break;
             }
         }
@@ -44,10 +53,9 @@ struct NumberParser;
 
 impl Parser for NumberParser {
     fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, String> {
-        let rest = &context.input[context.pos..];
-        let mut offset = rest.len();
+        let mut offset = context.rest().len();
         let mut is_ok = false;
-        for (i, c) in rest.char_indices() {
+        for (i, c) in context.rest().char_indices() {
             if i == 0 {
                 if c >= '0' && c <= '9' {
                     is_ok = true;
@@ -75,10 +83,9 @@ struct LetterParser;
 
 impl Parser for LetterParser {
     fn parse<'a>(&self, context: &'a ParserPointer) -> Result<ParserPointer<'a>, String> {
-        let rest = &context.input[context.pos..];
-        let mut offset = rest.len();
+        let mut offset = context.rest().len();
         let mut is_ok = false;
-        for (i, c) in rest.char_indices() {
+        for (i, c) in context.rest().char_indices() {
             if i == 0 {
                 if c >= 'a' && c <= 'z' {
                     is_ok = true;
@@ -114,10 +121,7 @@ impl<'a> Parser for FirstOf<'a> {
         if b_result.is_ok() {
             return b_result;
         }
-        Err(format!(
-            "No parser matched for: {}",
-            &context.input[context.pos..] // TODO implement rest() method for ParserPointer.
-        ))
+        Err(format!("No parser matched for: {}", context.rest()))
     }
 }
 

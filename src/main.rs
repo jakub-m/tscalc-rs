@@ -27,6 +27,11 @@ impl<'a> InputPointer<'a> {
             pos: self.pos + n,
         };
     }
+
+    fn get_next_n_chars(&self, offset: usize) -> &str {
+        // TODO Add right bound.
+        return &self.input[self.pos..self.pos + offset];
+    }
 }
 
 fn main() {
@@ -62,7 +67,8 @@ trait Parser {
 #[derive(Debug)]
 struct Match<'a> {
     pointer: InputPointer<'a>,
-    //chars: &'a str,
+    /// The characters matched by the parser.
+    matched: &'a str,
 }
 
 /// CharRangeParser checks if the input char is between the two chars specified in the constructor (inclusive).
@@ -88,6 +94,7 @@ impl Parser for CharRangeParser {
         if is_ok {
             Ok(Match {
                 pointer: pointer.advance(offset),
+                matched: pointer.get_next_n_chars(offset),
             })
         } else {
             Err(format!("Character not in [{0}, {1}]", self.0, self.1))

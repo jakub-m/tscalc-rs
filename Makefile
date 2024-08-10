@@ -1,6 +1,6 @@
 default: run
 run:
-	echo 123az | cargo run
+	echo 123abc | cargo run
 build:
 	cargo build
 test:

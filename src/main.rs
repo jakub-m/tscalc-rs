@@ -32,11 +32,28 @@ impl<'a> InputPointer<'a> {
         // TODO Add right bound.
         return &self.input[self.pos..self.pos + offset];
     }
+
+    fn at_pos(&self, p: usize) -> InputPointer<'a> {
+        let pos = if p > self.input.len() {
+            self.input.len()
+        } else {
+            p
+        };
+        InputPointer {
+            input: self.input,
+            pos,
+        }
+    }
 }
 
 fn main() {
     let stdin = io::stdin();
-    let parser = FirstOf(&NumberParser, &LetterParser);
+    //let parser = FirstOf(&NumberParser, &LetterParser);
+    let parser = &FirstOf(
+        &CollapseParser(&NumberParser),
+        &CollapseParser(&LetterParser),
+    );
+
     for line in stdin.lock().lines() {
         let line = line.unwrap();
         let pointer = &mut InputPointer {
@@ -120,6 +137,34 @@ impl<'a> Parser for FirstOf<'a> {
             return b_result;
         }
         Err(format!("No parser matched for: {}", pointer.rest()))
+    }
+}
+
+/// A parser that collapses many matches of the underlying parser into a single match.
+struct CollapseParser<'a>(&'a dyn Parser);
+
+impl<'a> Parser for CollapseParser<'a> {
+    fn parse<'b>(&self, pointer: &'b InputPointer) -> Result<Match<'b>, String> {
+        let mut current_pos: usize = pointer.pos;
+        loop {
+            let current_pointer = pointer.at_pos(current_pos);
+            let m = self.0.parse(&current_pointer);
+            if m.is_ok() {
+                current_pos = m.unwrap().pointer.pos;
+            } else {
+                if current_pos == pointer.pos {
+                    // Return the error since no parser matched anything.
+                    return Err(m.unwrap_err());
+                } else {
+                    // The parser advanced before the error, so we are good.
+                    let final_match = Match {
+                        pointer: pointer.at_pos(current_pos),
+                        matched: &pointer.input[pointer.pos..current_pos],
+                    };
+                    return Ok(final_match);
+                }
+            }
+        }
     }
 }
 

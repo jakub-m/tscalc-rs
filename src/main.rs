@@ -1,6 +1,6 @@
 use std::io::{self, BufRead};
 
-/// The context passed around between the parsers, pointing where in the input is the parser now.
+/// A context passed around between the parsers, pointing where in the input is the parser now.
 #[derive(Debug)]
 struct InputPointer<'a> {
     /// The input string.
@@ -20,6 +20,13 @@ impl<'a> InputPointer<'a> {
         }
         &self.input[self.pos..]
     }
+
+    fn advance(&self, n: usize) -> InputPointer<'a> {
+        return InputPointer {
+            input: self.input,
+            pos: self.pos + n,
+        };
+    }
 }
 
 fn main() {
@@ -27,21 +34,21 @@ fn main() {
     let parser = FirstOf(&NumberParser, &LetterParser);
     for line in stdin.lock().lines() {
         let line = line.unwrap();
-        let context = &mut InputPointer {
+        let pointer = &mut InputPointer {
             input: &line,
             pos: 0,
         };
         loop {
-            let new_context = match parser.parse(&context) {
+            let new_pointer = match parser.parse(&pointer) {
                 Ok(c) => c,
                 Err(s) => {
                     println!("error! {}", s);
                     break;
                 }
             };
-            println!("{:?}", new_context);
-            context.pos = new_context.pos;
-            if context.is_end() {
+            println!("{:?}", new_pointer);
+            pointer.pos = new_pointer.pos;
+            if pointer.is_end() {
                 break;
             }
         }
@@ -49,17 +56,17 @@ fn main() {
 }
 
 trait Parser {
-    fn parse<'a>(&self, context: &'a InputPointer) -> Result<InputPointer<'a>, String>;
+    fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<InputPointer<'a>, String>;
 }
 
 /// CharRangeParser checks if the input char is between the two chars specified in the constructor (inclusive).
 struct CharRangeParser(char, char);
 
 impl Parser for CharRangeParser {
-    fn parse<'a>(&self, context: &'a InputPointer) -> Result<InputPointer<'a>, String> {
-        let mut offset = context.rest().len();
+    fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<InputPointer<'a>, String> {
+        let mut offset = pointer.rest().len();
         let mut is_ok = false;
-        for (i, c) in context.rest().char_indices() {
+        for (i, c) in pointer.rest().char_indices() {
             if i == 0 {
                 if c >= self.0 && c <= self.1 {
                     is_ok = true;
@@ -73,10 +80,7 @@ impl Parser for CharRangeParser {
             }
         }
         if is_ok {
-            Ok(InputPointer {
-                input: context.input,
-                pos: context.pos + offset,
-            })
+            Ok(pointer.advance(offset))
         } else {
             Err(format!("Character not in [{0}, {1}]", self.0, self.1))
         }
@@ -91,16 +95,16 @@ const NumberParser: CharRangeParser = CharRangeParser('0', '9');
 struct FirstOf<'a>(&'a dyn Parser, &'a dyn Parser);
 
 impl<'a> Parser for FirstOf<'a> {
-    fn parse<'b>(&self, context: &'b InputPointer) -> Result<InputPointer<'b>, String> {
-        let a_result = self.0.parse(context);
+    fn parse<'b>(&self, pointer: &'b InputPointer) -> Result<InputPointer<'b>, String> {
+        let a_result = self.0.parse(pointer);
         if a_result.is_ok() {
             return a_result;
         }
-        let b_result = self.1.parse(context);
+        let b_result = self.1.parse(pointer);
         if b_result.is_ok() {
             return b_result;
         }
-        Err(format!("No parser matched for: {}", context.rest()))
+        Err(format!("No parser matched for: {}", pointer.rest()))
     }
 }
 

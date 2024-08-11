@@ -4,6 +4,12 @@ pub trait Parser {
     fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<Match<'a>, String>;
 }
 
+/// The parser that returns an arbitrary parse node. The parse node is an interpreted match. For
+/// example, if a match is a series of digits, the parse node can be a number.
+pub trait WithParseNode<T> {
+    fn parse_node<'a>(&self, m: &'a Match) -> Option<T>;
+}
+
 /// A context passed around between the parsers, pointing where in the input is the parser now.
 #[derive(Debug)]
 pub struct InputPointer<'a> {

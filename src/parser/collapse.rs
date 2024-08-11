@@ -1,7 +1,7 @@
 use super::core::*;
 
-/// Collapse result of other matches into a single match.
-pub struct Collapse<'a> {
+/// Concatenate subsequent results of applying a parser into a single match.
+pub struct Concat<'a> {
     pub parser: &'a dyn Parser,
     /// The minimum number of expected matches. If there are less than those matches, the parser returns an error.
     pub at_least: Option<u32>,
@@ -9,7 +9,7 @@ pub struct Collapse<'a> {
     pub at_most: Option<u32>,
 }
 
-impl<'a> Parser for Collapse<'a> {
+impl<'a> Parser for Concat<'a> {
     fn parse<'b>(&self, pointer: &'b InputPointer) -> Result<Match<'b>, String> {
         let mut current_pos: usize = pointer.pos;
         let mut match_count: u32 = 0;
@@ -57,25 +57,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_collapse_variants() {
-        test_collapse("1234", Some(2), Some(3), Some("123"));
-        test_collapse("1234", Some(2), Some(5), Some("1234"));
-        test_collapse("1234", Some(6), Some(11), None);
-        test_collapse("1234", Some(4), Some(4), Some("1234"));
-        test_collapse("1234", None, Some(4), Some("1234"));
-        test_collapse("1234", Some(1), None, Some("1234"));
-        test_collapse("1234", None, None, Some("1234"));
-        test_collapse("123x", None, None, Some("123"));
-        test_collapse("12xx", Some(3), None, None);
+    fn test_concat_variants() {
+        test_concat("1234", Some(2), Some(3), Some("123"));
+        test_concat("1234", Some(2), Some(5), Some("1234"));
+        test_concat("1234", Some(6), Some(11), None);
+        test_concat("1234", Some(4), Some(4), Some("1234"));
+        test_concat("1234", None, Some(4), Some("1234"));
+        test_concat("1234", Some(1), None, Some("1234"));
+        test_concat("1234", None, None, Some("1234"));
+        test_concat("123x", None, None, Some("123"));
+        test_concat("12xx", Some(3), None, None);
     }
 
-    fn test_collapse(
+    fn test_concat(
         input: &str,
         at_least: Option<u32>,
         at_most: Option<u32>,
         expected_match: Option<&str>,
     ) {
-        let parser = Collapse {
+        let parser = Concat {
             parser: &Digit,
             at_least,
             at_most,

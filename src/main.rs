@@ -6,12 +6,12 @@ use parser::{InputPointer, Parser};
 fn main() {
     let stdin = io::stdin();
     let parser = &parser::FirstOf(
-        &parser::Collapse {
+        &parser::Concat {
             parser: &parser::Digit,
             at_least: None,
             at_most: None,
         },
-        &parser::Collapse {
+        &parser::Concat {
             parser: &parser::LowerCaseLetter,
             at_least: None,
             at_most: None,

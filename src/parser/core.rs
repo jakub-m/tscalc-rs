@@ -57,6 +57,7 @@ impl<'a> InputPointer<'a> {
 
 #[derive(Debug)]
 pub struct Match<'a> {
+    /// After a successful match, the next unparsed part of the input. The next parser can continue from this pointer.
     pub pointer: InputPointer<'a>,
     /// The characters matched by the parser.
     pub matched: &'a str,

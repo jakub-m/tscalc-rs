@@ -57,20 +57,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn at_least_at_most_ok() {
-        test_collapse(
-            String::from("1234"),
-            Some(2),
-            Some(3),
-            Some(String::from("123")),
-        );
+    fn test_collapse_variants() {
+        test_collapse("1234", Some(2), Some(3), Some("123"));
+        test_collapse("1234", Some(2), Some(5), Some("1234"));
+        test_collapse("1234", Some(6), Some(11), None);
+        test_collapse("1234", Some(4), Some(4), Some("1234"));
+        test_collapse("1234", None, Some(4), Some("1234"));
+        test_collapse("1234", Some(1), None, Some("1234"));
+        test_collapse("1234", None, None, Some("1234"));
+        test_collapse("123x", None, None, Some("123"));
+        test_collapse("12xx", Some(3), None, None);
     }
 
     fn test_collapse(
-        input: String,
+        input: &str,
         at_least: Option<u32>,
         at_most: Option<u32>,
-        expected_match: Option<String>,
+        expected_match: Option<&str>,
     ) {
         let parser = Collapse {
             parser: &Digit,
@@ -78,7 +81,7 @@ mod tests {
             at_most,
         };
         let pointer = InputPointer {
-            input: &input,
+            input: &String::from(input),
             pos: 0,
         };
         let result = parser.parse(&pointer);

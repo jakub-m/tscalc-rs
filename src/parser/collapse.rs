@@ -10,12 +10,12 @@ pub struct Concat<'a> {
 }
 
 impl<'a> Parser for Concat<'a> {
-    fn parse<'b>(&self, pointer: &'b InputPointer) -> Result<Match<'b>, String> {
+    fn parse<'b>(&self, pointer: InputPointer<'b>) -> Result<Match<'b>, String> {
         let mut current_pos: usize = pointer.pos;
         let mut match_count: u32 = 0;
         loop {
             let current_pointer = pointer.at_pos(current_pos);
-            let m = self.parser.parse(&current_pointer);
+            let m = self.parser.parse(current_pointer);
             if m.is_ok() {
                 match_count += 1;
                 if self.at_most.is_some_and(|upper| match_count >= upper) {
@@ -84,7 +84,7 @@ mod tests {
             input: &String::from(input),
             pos: 0,
         };
-        let result = parser.parse(&pointer);
+        let result = parser.parse(pointer);
         match expected_match {
             Some(expected_match) => {
                 assert!(

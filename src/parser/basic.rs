@@ -6,7 +6,7 @@ use super::core::*;
 pub struct CharRangeParser(pub char, pub char);
 
 impl Parser for CharRangeParser {
-    fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<Match<'a>, String> {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<Match<'a>, String> {
         let mut offset = pointer.rest().len();
         let mut is_ok = false;
         for (i, c) in pointer.rest().char_indices() {
@@ -23,9 +23,11 @@ impl Parser for CharRangeParser {
             }
         }
         if is_ok {
+            let advanced = pointer.advance(offset);
+            let matched = pointer.peek_n(offset);
             Ok(Match {
-                pointer: pointer.advance(offset),
-                matched: pointer.peek_n(offset),
+                pointer: advanced,
+                matched,
             })
         } else {
             Err(format!("Character not in [{0}, {1}]", self.0, self.1))
@@ -41,7 +43,7 @@ pub const Digit: CharRangeParser = CharRangeParser('0', '9');
 pub struct FirstOf<'a>(pub &'a dyn Parser, pub &'a dyn Parser);
 
 impl<'a> Parser for FirstOf<'a> {
-    fn parse<'b>(&self, pointer: &'b InputPointer) -> Result<Match<'b>, String> {
+    fn parse<'b>(&self, pointer: InputPointer<'b>) -> Result<Match<'b>, String> {
         let a_result = self.0.parse(pointer);
         if a_result.is_ok() {
             return a_result;
@@ -68,7 +70,7 @@ mod tests {
             input: &input,
             pos: 0,
         };
-        let result = parser.parse(&pp);
+        let result = parser.parse(pp);
         assert!(result.is_ok(), "result was: {:?}", result)
     }
 
@@ -80,7 +82,7 @@ mod tests {
             input: &input,
             pos: 0,
         };
-        let result = parser.parse(&pp);
+        let result = parser.parse(pp);
         assert!(!result.is_ok(), "result was: {:?}", result)
     }
 }

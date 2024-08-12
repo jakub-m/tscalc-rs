@@ -1,7 +1,7 @@
 // Core interfaces and structures.
 
 pub trait Parser {
-    fn parse<'a>(&self, pointer: &'a InputPointer) -> Result<Match<'a>, String>;
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<Match<'a>, String>;
 }
 
 /// The parser that returns an arbitrary parse node. The parse node is an interpreted match. For
@@ -11,7 +11,7 @@ pub trait WithParseNode<T> {
 }
 
 /// A context passed around between the parsers, pointing where in the input is the parser now.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct InputPointer<'a> {
     /// The input string.
     pub input: &'a String,
@@ -20,6 +20,9 @@ pub struct InputPointer<'a> {
 }
 
 impl<'a> InputPointer<'a> {
+    pub fn from_string(s: &String) -> InputPointer {
+        InputPointer { input: s, pos: 0 }
+    }
     /// Check if the pointer is at the end of the input.
     pub fn is_end(&self) -> bool {
         self.pos >= self.input.len()
@@ -42,7 +45,7 @@ impl<'a> InputPointer<'a> {
     }
 
     /// Peek next N characters.
-    pub fn peek_n(&self, offset: usize) -> &str {
+    pub fn peek_n(&self, offset: usize) -> &'a str {
         // TODO Add right bound.
         return &self.input[self.pos..self.pos + offset];
     }

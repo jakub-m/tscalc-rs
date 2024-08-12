@@ -1,16 +1,10 @@
 // Core interfaces and structures.
 
-pub trait Parser {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<Match<'a>, String>;
+pub trait Matcher {
+    fn match_input<'a>(&self, pointer: InputPointer<'a>) -> Result<Match<'a>, String>;
 }
 
-/// The parser that returns an arbitrary parse node. The parse node is an interpreted match. For
-/// example, if a match is a series of digits, the parse node can be a number.
-pub trait WithParseNode<T> {
-    fn parse_node<'a>(&self, m: &'a Match) -> Option<T>;
-}
-
-/// A context passed around between the parsers, pointing where in the input is the parser now.
+/// A context passed around between the matchers, pointing where in the input is the matched now.
 #[derive(Copy, Clone, Debug)]
 pub struct InputPointer<'a> {
     /// The input string.
@@ -66,8 +60,8 @@ impl<'a> InputPointer<'a> {
 
 #[derive(Debug)]
 pub struct Match<'a> {
-    /// After a successful match, the next unparsed part of the input. The next parser can continue from this pointer.
+    /// After a successful match, the next unmatched part of the input. The next matcher can continue from this pointer.
     pub pointer: InputPointer<'a>,
-    /// The characters matched by the parser.
+    /// The characters matched by the matcher.
     pub matched: &'a str,
 }

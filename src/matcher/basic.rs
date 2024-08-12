@@ -1,12 +1,12 @@
-// Basic parsers.
+// Basic matchers.
 
 use super::core::*;
 
-/// CharRangeParser checks if the input char is between the two chars specified in the constructor (inclusive).
-pub struct CharRangeParser(pub char, pub char);
+/// Check if the input char is between the two chars specified in the constructor (inclusive).
+pub struct CharRange(pub char, pub char);
 
-impl Parser for CharRangeParser {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<Match<'a>, String> {
+impl Matcher for CharRange {
+    fn match_input<'a>(&self, pointer: InputPointer<'a>) -> Result<Match<'a>, String> {
         let mut offset = pointer.rest().len();
         let mut is_ok = false;
         for (i, c) in pointer.rest().char_indices() {
@@ -36,53 +36,51 @@ impl Parser for CharRangeParser {
 }
 
 #[allow(non_upper_case_globals)]
-pub const LowerCaseLetter: CharRangeParser = CharRangeParser('a', 'z');
+pub const LowerCaseLetter: CharRange = CharRange('a', 'z');
 #[allow(non_upper_case_globals)]
-pub const Digit: CharRangeParser = CharRangeParser('0', '9');
+pub const Digit: CharRange = CharRange('0', '9');
 
-pub struct FirstOf<'a>(pub &'a dyn Parser, pub &'a dyn Parser);
+pub struct FirstOf<'a>(pub &'a dyn Matcher, pub &'a dyn Matcher);
 
-impl<'a> Parser for FirstOf<'a> {
-    fn parse<'b>(&self, pointer: InputPointer<'b>) -> Result<Match<'b>, String> {
-        let a_result = self.0.parse(pointer);
+impl<'a> Matcher for FirstOf<'a> {
+    fn match_input<'b>(&self, pointer: InputPointer<'b>) -> Result<Match<'b>, String> {
+        let a_result = self.0.match_input(pointer);
         if a_result.is_ok() {
             return a_result;
         }
-        let b_result = self.1.parse(pointer);
+        let b_result = self.1.match_input(pointer);
         if b_result.is_ok() {
             return b_result;
         }
-        Err(format!("No parser matched for: {}", pointer.rest()))
+        Err(format!("Nothing matched for: {}", pointer.rest()))
     }
 }
-
-/// A parser that collapses many matches of the underlying parser into a single match.
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn letter_parser_with_letter_is_ok() {
-        let parser = LowerCaseLetter;
+    fn letter_matcher_with_letter_is_ok() {
+        let matcher = LowerCaseLetter;
         let input = String::from("x");
         let pp = InputPointer {
             input: &input,
             pos: 0,
         };
-        let result = parser.parse(pp);
+        let result = matcher.match_input(pp);
         assert!(result.is_ok(), "result was: {:?}", result)
     }
 
     #[test]
-    fn letter_parser_with_garbage_is_not_ok() {
-        let parser = LowerCaseLetter;
+    fn letter_matcher_with_garbage_is_not_ok() {
+        let matcher = LowerCaseLetter;
         let input = String::from("1");
         let pp = InputPointer {
             input: &input,
             pos: 0,
         };
-        let result = parser.parse(pp);
+        let result = matcher.match_input(pp);
         assert!(!result.is_ok(), "result was: {:?}", result)
     }
 }

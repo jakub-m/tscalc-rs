@@ -1,21 +1,21 @@
 use super::core::*;
 
-/// Concatenate subsequent results of applying a parser into a single match.
+/// Concatenate subsequent results of applying a matcher into a single match.
 pub struct Concat<'a> {
-    pub parser: &'a dyn Parser,
-    /// The minimum number of expected matches. If there are less than those matches, the parser returns an error.
+    pub matcher: &'a dyn Matcher,
+    /// The minimum number of expected matches. If there are less than those matches, the matcher returns an error.
     pub at_least: Option<u32>,
-    /// The maximum number of matches. The parser returns after this number of matches, even if there are more possible matches.
+    /// The maximum number of matches. The matcher returns after this number of matches, even if there are more possible matches.
     pub at_most: Option<u32>,
 }
 
-impl<'a> Parser for Concat<'a> {
-    fn parse<'b>(&self, pointer: InputPointer<'b>) -> Result<Match<'b>, String> {
+impl<'a> Matcher for Concat<'a> {
+    fn match_input<'b>(&self, pointer: InputPointer<'b>) -> Result<Match<'b>, String> {
         let mut current_pos: usize = pointer.pos;
         let mut match_count: u32 = 0;
         loop {
             let current_pointer = pointer.at_pos(current_pos);
-            let m = self.parser.parse(current_pointer);
+            let m = self.matcher.match_input(current_pointer);
             if m.is_ok() {
                 match_count += 1;
                 if self.at_most.is_some_and(|upper| match_count >= upper) {
@@ -34,10 +34,10 @@ impl<'a> Parser for Concat<'a> {
                 current_pos = m.unwrap().pointer.pos;
             } else {
                 if current_pos == pointer.pos {
-                    // Return the error since no parser matched anything.
+                    // Return the error since no matcher matched anything.
                     return Err(m.unwrap_err());
                 } else {
-                    // The parser advanced before the error, so we are good.
+                    // The matcher advanced before the error, so we are good.
                     if self.at_least.is_some_and(|lower| match_count < lower) {
                         return Err(format!("expected at least {:?} matches", self.at_least));
                     }
@@ -75,8 +75,8 @@ mod tests {
         at_most: Option<u32>,
         expected_match: Option<&str>,
     ) {
-        let parser = Concat {
-            parser: &Digit,
+        let matcher = Concat {
+            matcher: &Digit,
             at_least,
             at_most,
         };
@@ -84,7 +84,7 @@ mod tests {
             input: &String::from(input),
             pos: 0,
         };
-        let result = parser.parse(pointer);
+        let result = matcher.match_input(pointer);
         match expected_match {
             Some(expected_match) => {
                 assert!(

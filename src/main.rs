@@ -1,7 +1,7 @@
 use std::io::{self, BufRead};
 
-mod parser;
-use parser::{InputPointer, Parser};
+mod matcher;
+use matcher::{InputPointer, Matcher};
 
 fn main() {
     //    let stdin = io::stdin();

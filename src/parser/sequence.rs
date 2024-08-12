@@ -19,9 +19,15 @@ impl<'a> Parser for Sequence<'a> {
                     input: p.pointer.input,
                     pos: p.pointer.pos,
                 });
+            } else {
+                return Err(result.unwrap_err()); // TODO refactor with match etc
             }
         }
-        todo!()
+        let p = current_pointer.take().unwrap();
+        Ok(Match {
+            pointer: p,
+            matched: &pointer.input[pointer.pos..p.pos], // TODO refactor, add method.
+        })
     }
 }
 

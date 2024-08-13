@@ -3,6 +3,9 @@ use std::io::{self, BufRead};
 mod matcher;
 use matcher::{InputPointer, Matcher};
 
+mod parser;
+use parser::*;
+
 fn main() {
     //    let stdin = io::stdin();
     //    let parser = &parser::FirstOf(

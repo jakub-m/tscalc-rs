@@ -40,25 +40,33 @@ pub struct ParseErr<'a> {
     message: String,
 }
 
-pub fn parse_signed_duration(pointer: InputPointer) -> Result<ParseOk, ParseErr> {
-    let pat = Regex::new("(-+)\\s*(\\d+)([dhms])").unwrap();
-    match pat.captures(pointer.input.as_ref()) {
-        Some(caps) => {
-            match captures_to_duration(&caps) {
-                Ok(dur) => Ok(ParseOk {
-                    pointer, // TODO advance pointer here
-                    node: Node::Duration(dur),
-                }),
-                Err(s) => Err(ParseErr {
-                    pointer,
-                    message: String::from(s),
-                }),
+pub trait Parser {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>>;
+}
+
+pub struct SignedDuration;
+
+impl Parser for SignedDuration {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        let pat = Regex::new("(-+)\\s*(\\d+)([dhms])").unwrap();
+        match pat.captures(pointer.input.as_ref()) {
+            Some(caps) => {
+                match captures_to_duration(&caps) {
+                    Ok(dur) => Ok(ParseOk {
+                        pointer, // TODO advance pointer here
+                        node: Node::Duration(dur),
+                    }),
+                    Err(s) => Err(ParseErr {
+                        pointer,
+                        message: String::from(s),
+                    }),
+                }
             }
+            None => Err(ParseErr {
+                pointer,
+                message: String::from("did not match any duration"),
+            }),
         }
-        None => Err(ParseErr {
-            pointer,
-            message: String::from("did not match any duration"),
-        }),
     }
 }
 
@@ -120,17 +128,16 @@ fn parse_zero_or_many(p: InputPointer) {
 }
 
 mod tests {
+    use super::{Node, Parser, SignedDuration, HOUR};
+    use crate::matcher::InputPointer;
     use chrono::Duration;
-
-    use crate::{lib::HOUR, matcher::InputPointer};
-
-    use super::{parse_signed_duration, Node};
 
     #[test]
     fn test_parse_signed_duration() {
+        let parser = SignedDuration;
         let s = String::from("-123h");
         let p = InputPointer::from_string(&s);
-        let result = parse_signed_duration(p);
+        let result = parser.parse(p);
         assert!(result.is_ok(), "result not ok: {:?}", result);
         assert_eq!(
             result.unwrap().node,

@@ -1,6 +1,6 @@
 use crate::matcher::InputPointer;
 
-use chrono::Duration;
+use chrono::{DateTime, Duration, FixedOffset};
 
 /// Example of an expression:
 ///  2000-01-01T00:00:00Z + 1h
@@ -18,14 +18,8 @@ const DAY: i64 = HOUR * 24;
 
 #[derive(Debug, PartialEq)]
 pub enum Node {
-    Sign(Sign),
     Duration(Duration),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Sign {
-    Plus,
-    Minus,
+    DateTime(DateTime<FixedOffset>),
 }
 
 #[derive(Debug)]
@@ -48,7 +42,7 @@ pub struct SignedDuration;
 
 impl Parser for SignedDuration {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        let pat = Regex::new("^([-+])?\\s*(\\d+)([dhms])").unwrap();
+        let pat = Regex::new(r"^([-+])?\s*(\d+)([dhms])").unwrap();
         match pat.captures(pointer.input.as_ref()) {
             Some(caps) => {
                 match captures_to_duration(&caps) {
@@ -114,26 +108,38 @@ fn captures_to_duration(caps: &Captures) -> Result<Duration, String> {
     Ok(Duration::seconds(sign * scale * unit))
 }
 
-fn parse_optional(p: InputPointer) {
-    todo!()
-}
+pub struct DateTimeParser;
 
-fn parse_add_sub(p: InputPointer) {
-    todo!()
-}
-
-fn parse_date(p: InputPointer) {
-    todo!()
-}
-
-fn parse_zero_or_many(p: InputPointer) {
-    todo!()
+impl Parser for DateTimeParser {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        let pat = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|([+-]\d{2}:\d{2}))$")
+            .unwrap();
+        let match_ = if let Some(match_) = pat.find(&pointer.input) {
+            match_.as_str()
+        } else {
+            return Err(ParseErr {
+                pointer,
+                message: "not a datetime".to_string(),
+            });
+        };
+        if let Ok(d) = DateTime::parse_from_rfc3339(match_) {
+            Ok(ParseOk {
+                pointer: pointer.advance(match_.len()),
+                node: Node::DateTime(d),
+            })
+        } else {
+            return Err(ParseErr {
+                pointer,
+                message: "bad datetime".to_string(),
+            });
+        }
+    }
 }
 
 mod tests {
-    use super::{Node, Parser, SignedDuration, DAY, HOUR};
+    use super::{DateTimeParser, Node, Parser, SignedDuration, DAY, HOUR};
     use crate::matcher::InputPointer;
-    use chrono::Duration;
+    use chrono::{DateTime, Duration, FixedOffset};
 
     #[test]
     fn test_parse_signed_duration() {
@@ -157,6 +163,31 @@ mod tests {
                 result.unwrap().node,
                 Node::Duration(Duration::seconds(seconds))
             );
+        } else {
+            assert!(result.is_err(), "result not err: {:?}", result);
+        }
+    }
+
+    #[test]
+    fn test_parse_datetime() {
+        check_parse_datetime("2000-01-01T00:00:00Z", Some("2000-01-01T00:00:00Z"));
+        check_parse_datetime(
+            "2000-01-01T00:00:00+00:00",
+            Some("2000-01-01T00:00:00+00:00"),
+        );
+        check_parse_datetime("2000-01-01T00:00:ZZZ", None);
+    }
+
+    fn check_parse_datetime(input: &str, expected: Option<&str>) {
+        let parser = DateTimeParser;
+        let s = String::from(input);
+        let p = InputPointer::from_string(&s);
+        let result = parser.parse(p);
+        if let Some(expected) = expected {
+            assert!(result.is_ok(), "result not ok: {:?}", result);
+            let actual_node = result.unwrap().node;
+            let expected = DateTime::parse_from_rfc3339(expected).unwrap();
+            assert_eq!(actual_node, Node::DateTime(expected),);
         } else {
             assert!(result.is_err(), "result not err: {:?}", result);
         }

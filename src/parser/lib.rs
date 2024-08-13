@@ -48,7 +48,7 @@ pub struct SignedDuration;
 
 impl Parser for SignedDuration {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        let pat = Regex::new("(-+)?\\s*(\\d+)([dhms])").unwrap();
+        let pat = Regex::new("^([-+])?\\s*(\\d+)([dhms])").unwrap();
         match pat.captures(pointer.input.as_ref()) {
             Some(caps) => {
                 match captures_to_duration(&caps) {
@@ -71,45 +71,47 @@ impl Parser for SignedDuration {
 }
 
 fn captures_to_duration(caps: &Captures) -> Result<Duration, String> {
-    let sign = caps.get(1).map(|s| {
-        if s.as_str() == "+" {
-            Ok(1)
-        } else if s.as_str() == "-" {
-            Ok(-1)
+    let sign: i64 = if let Some(sign) = caps.get(1) {
+        let sign = sign.as_str();
+        if sign == "+" {
+            1
+        } else if sign == "-" {
+            -1
         } else {
-            Err("unknown sign")
+            return Err("unknown sign".to_string());
         }
-    });
-    let scale = caps.get(2).map(|s| s.as_str().parse::<u32>());
-    let unit = caps.get(3).map(|s| match s.as_str() {
-        "s" => Ok(SECOND),
-        "m" => Ok(MINUTE),
-        "h" => Ok(HOUR),
-        "d" => Ok(DAY),
-        other => Err(format!("bad unit {}", other)),
-    });
+    } else {
+        1 // If neither + nor - then assume +.
+    };
 
-    match sign {
-        None => Err("no sign".to_string()),
-        Some(sign_result) => match sign_result {
-            Err(e) => Err(e.to_string()),
-            Ok(sign) => match scale {
-                None => Err("no scale".to_string()),
-                Some(scale_result) => match scale_result {
-                    Err(e) => Err(e.to_string()),
-                    Ok(scale) => match unit {
-                        None => Err("no unit".to_string()),
-                        Some(unit) => match unit {
-                            Err(e) => Err(e),
-                            Ok(unit) => Ok(Duration::seconds(
-                                i64::from(sign) * i64::from(scale) * i64::from(unit),
-                            )),
-                        },
-                    },
-                },
-            },
-        },
-    }
+    let scale: i64 = if let Some(scale) = caps.get(2) {
+        if let Ok(scale) = scale.as_str().parse::<u32>() {
+            i64::from(scale)
+        } else {
+            return Err("bad scale".to_string());
+        }
+    } else {
+        return Err("unknown scale".to_string());
+    };
+
+    let unit: i64 = if let Some(unit) = caps.get(3) {
+        let unit = match unit.as_str() {
+            "s" => Ok(SECOND),
+            "m" => Ok(MINUTE),
+            "h" => Ok(HOUR),
+            "d" => Ok(DAY),
+            other => Err(format!("bad unit {}", other)),
+        };
+        if let Ok(unit) = unit {
+            unit
+        } else {
+            return Err(unit.unwrap_err());
+        }
+    } else {
+        return Err("unknown unit".to_string());
+    };
+
+    Ok(Duration::seconds(sign * scale * unit))
 }
 
 fn parse_optional(p: InputPointer) {
@@ -129,7 +131,7 @@ fn parse_zero_or_many(p: InputPointer) {
 }
 
 mod tests {
-    use super::{Node, Parser, SignedDuration, HOUR};
+    use super::{Node, Parser, SignedDuration, DAY, HOUR};
     use crate::matcher::InputPointer;
     use chrono::Duration;
 
@@ -138,7 +140,10 @@ mod tests {
         check_parse_duration("-123h", Some(-123 * HOUR));
         check_parse_duration("+123h", Some(123 * HOUR));
         check_parse_duration("123h", Some(123 * HOUR));
-        //check_parse_duration("123d", Some(123 * DAY));
+        check_parse_duration("123d", Some(123 * DAY));
+        check_parse_duration("123x", None);
+        check_parse_duration("x123d", None);
+        check_parse_duration("123", None);
     }
 
     fn check_parse_duration(input: &str, expected: Option<i64>) {

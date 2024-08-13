@@ -48,7 +48,7 @@ pub struct SignedDuration;
 
 impl Parser for SignedDuration {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        let pat = Regex::new("(-+)\\s*(\\d+)([dhms])").unwrap();
+        let pat = Regex::new("(-+)?\\s*(\\d+)([dhms])").unwrap();
         match pat.captures(pointer.input.as_ref()) {
             Some(caps) => {
                 match captures_to_duration(&caps) {
@@ -88,6 +88,7 @@ fn captures_to_duration(caps: &Captures) -> Result<Duration, String> {
         "d" => Ok(DAY),
         other => Err(format!("bad unit {}", other)),
     });
+
     match sign {
         None => Err("no sign".to_string()),
         Some(sign_result) => match sign_result {
@@ -134,14 +135,25 @@ mod tests {
 
     #[test]
     fn test_parse_signed_duration() {
+        check_parse_duration("-123h", Some(-123 * HOUR));
+        check_parse_duration("+123h", Some(123 * HOUR));
+        check_parse_duration("123h", Some(123 * HOUR));
+        //check_parse_duration("123d", Some(123 * DAY));
+    }
+
+    fn check_parse_duration(input: &str, expected: Option<i64>) {
         let parser = SignedDuration;
-        let s = String::from("-123h");
+        let s = String::from(input);
         let p = InputPointer::from_string(&s);
         let result = parser.parse(p);
-        assert!(result.is_ok(), "result not ok: {:?}", result);
-        assert_eq!(
-            result.unwrap().node,
-            Node::Duration(Duration::seconds(-123 * HOUR))
-        );
+        if let Some(seconds) = expected {
+            assert!(result.is_ok(), "result not ok: {:?}", result);
+            assert_eq!(
+                result.unwrap().node,
+                Node::Duration(Duration::seconds(seconds))
+            );
+        } else {
+            assert!(result.is_err(), "result not err: {:?}", result);
+        }
     }
 }

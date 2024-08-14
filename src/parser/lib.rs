@@ -1,6 +1,7 @@
-use crate::{matcher::InputPointer, parser};
+use crate::matcher::InputPointer;
 
-use chrono::{DateTime, Duration, FixedOffset};
+use chrono;
+use chrono::{Duration, FixedOffset};
 
 /// Example of an expression:
 ///  2000-01-01T00:00:00Z + 1h
@@ -19,7 +20,7 @@ const DAY: i64 = HOUR * 24;
 #[derive(Debug, PartialEq)]
 pub enum Node {
     Duration(Duration),
-    DateTime(DateTime<FixedOffset>),
+    DateTime(chrono::DateTime<FixedOffset>),
     Sequence(Vec<Node>),
 }
 
@@ -121,7 +122,7 @@ impl Parser for DateTimeParser {
                 message: "not a datetime".to_string(),
             });
         };
-        if let Ok(d) = DateTime::parse_from_rfc3339(match_) {
+        if let Ok(d) = chrono::DateTime::parse_from_rfc3339(match_) {
             Ok(ParseOk {
                 pointer: pointer.advance(match_.len()),
                 node: Node::DateTime(d),
@@ -220,6 +221,7 @@ mod tests {
         consume_repeated, DateTimeParser, FirstOf, Node, Parser, SignedDuration, DAY, HOUR,
     };
     use crate::matcher::InputPointer;
+    use chrono;
     use chrono::{DateTime, Duration, FixedOffset, TimeDelta};
 
     #[test]
@@ -267,7 +269,7 @@ mod tests {
         if let Some(expected) = expected {
             assert!(result.is_ok(), "result not ok: {:?}", result);
             let actual_node = result.unwrap().node;
-            let expected = DateTime::parse_from_rfc3339(expected).unwrap();
+            let expected = chrono::DateTime::parse_from_rfc3339(expected).unwrap();
             assert_eq!(actual_node, Node::DateTime(expected),);
         } else {
             assert!(result.is_err(), "result not err: {:?}", result);

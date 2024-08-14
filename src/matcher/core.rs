@@ -5,7 +5,7 @@ pub trait Matcher {
 }
 
 /// A context passed around between the matchers, pointing where in the input is the matched now.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct InputPointer<'a> {
     /// The input string.
     pub input: &'a String,
@@ -15,6 +15,7 @@ pub struct InputPointer<'a> {
 
 impl<'a> InputPointer<'a> {
     pub fn from_string(s: &String) -> InputPointer {
+        // TODO deprecate
         InputPointer { input: s, pos: 0 }
     }
     /// Check if the pointer is at the end of the input.

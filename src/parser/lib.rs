@@ -20,6 +20,7 @@ const DAY: i64 = HOUR * 24;
 pub enum Node {
     Duration(Duration),
     DateTime(DateTime<FixedOffset>),
+    Sequence(Vec<Node>),
 }
 
 #[derive(Debug)]
@@ -43,19 +44,17 @@ pub struct SignedDuration;
 impl Parser for SignedDuration {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         let pat = Regex::new(r"^([-+])?\s*(\d+)([dhms])").unwrap();
-        match pat.captures(pointer.input.as_ref()) {
-            Some(caps) => {
-                match captures_to_duration(&caps) {
-                    Ok(dur) => Ok(ParseOk {
-                        pointer, // TODO advance pointer here
-                        node: Node::Duration(dur),
-                    }),
-                    Err(s) => Err(ParseErr {
-                        pointer,
-                        message: String::from(s),
-                    }),
-                }
-            }
+        match pat.captures(pointer.rest().as_ref()) {
+            Some(caps) => match captures_to_duration(&caps) {
+                Ok(dur) => Ok(ParseOk {
+                    pointer: pointer.advance(caps.get(0).unwrap().len()),
+                    node: Node::Duration(dur),
+                }),
+                Err(s) => Err(ParseErr {
+                    pointer,
+                    message: String::from(s),
+                }),
+            },
             None => Err(ParseErr {
                 pointer,
                 message: String::from("did not match any duration"),
@@ -114,7 +113,7 @@ impl Parser for DateTimeParser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         let pat = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|([+-]\d{2}:\d{2}))$")
             .unwrap();
-        let match_ = if let Some(match_) = pat.find(&pointer.input) {
+        let match_ = if let Some(match_) = pat.find(&pointer.rest()) {
             match_.as_str()
         } else {
             return Err(ParseErr {
@@ -136,10 +135,89 @@ impl Parser for DateTimeParser {
     }
 }
 
+pub struct SequenceParser<'a> {
+    parsers: Vec<&'a dyn Parser>,
+}
+
+//impl<'a> SequenceParser<'a> {
+//    pub fn new(parsers: &Vec<&'a dyn Parser>) -> SequenceParser<'a> {
+//        SequenceParser {
+//            parsers: parsers.clone(),
+//        }
+//    }
+//}
+//
+//impl<'p> Parser for SequenceParser<'p> {
+//    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+//        let mut nodes: Vec<Node> = Vec::new();
+//        let mut current_pointer = Some(pointer.clone());
+//        for i in 0..self.parsers.len() {
+//            let parser = self.parsers[i];
+//            let result = parser.parse(current_pointer.take().unwrap());
+//            if let Ok(parse_ok) = result {
+//                nodes.push(parse_ok.node);
+//                current_pointer = Some(parse_ok.pointer);
+//            } else {
+//                return Err(result.unwrap_err());
+//            }
+//        }
+//        Ok(ParseOk {
+//            pointer: current_pointer.take().unwrap(),
+//            node: Node::Sequence(nodes),
+//        })
+//    }
+//}
+
+#[derive(Debug)]
+struct RepeatedOk<'a> {
+    pointer: InputPointer<'a>,
+    nodes: Vec<Node>,
+}
+
+fn consume_repeated<'a>(
+    parser: &'a dyn Parser,
+    pointer: InputPointer<'a>,
+    error_message: &str,
+) -> Result<RepeatedOk<'a>, ParseErr<'a>> {
+    let mut nodes: Vec<Node> = Vec::new();
+    let mut current_pointer = Some(pointer.clone());
+    loop {
+        let result = parser.parse(current_pointer.take().unwrap());
+        if let Ok(result_ok) = result {
+            nodes.push(result_ok.node);
+            current_pointer = Some(result_ok.pointer);
+        } else {
+            current_pointer = Some(result.unwrap_err().pointer);
+            break;
+        }
+    }
+    if nodes.is_empty() {
+        assert_eq!(
+            current_pointer.unwrap(),
+            pointer,
+            "BUG, nodes are empty but the pointers are different"
+        );
+        return Err(ParseErr {
+            pointer: current_pointer.unwrap(),
+            message: String::from(error_message),
+        });
+    } else {
+        assert_ne!(
+            current_pointer.unwrap(),
+            pointer,
+            "BUG, nodes not empty but the pointers are equal"
+        );
+        return Ok(RepeatedOk {
+            nodes,
+            pointer: current_pointer.unwrap(),
+        });
+    }
+}
+
 mod tests {
-    use super::{DateTimeParser, Node, Parser, SignedDuration, DAY, HOUR};
+    use super::{consume_repeated, DateTimeParser, Node, Parser, SignedDuration, DAY, HOUR};
     use crate::matcher::InputPointer;
-    use chrono::{DateTime, Duration, FixedOffset};
+    use chrono::{DateTime, Duration, FixedOffset, TimeDelta};
 
     #[test]
     fn test_parse_signed_duration() {
@@ -191,5 +269,19 @@ mod tests {
         } else {
             assert!(result.is_err(), "result not err: {:?}", result);
         }
+    }
+
+    #[test]
+    fn test_consume_repeated() {
+        let input = "1s+2s-3s".to_string();
+        let result = consume_repeated(&SignedDuration, InputPointer::from_string(&input), "bla");
+        assert!(result.is_ok(), "expected ok, was: {:?}", result);
+        let result = result.unwrap();
+        let expected_nodes = vec![
+            Node::Duration(TimeDelta::seconds(1)),
+            Node::Duration(TimeDelta::seconds(2)),
+            Node::Duration(TimeDelta::seconds(-3)),
+        ];
+        assert_eq!(result.nodes, expected_nodes);
     }
 }

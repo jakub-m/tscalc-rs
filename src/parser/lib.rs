@@ -290,10 +290,11 @@ mod tests {
 
     #[test]
     fn test_parse_first_of() {
-        let parser = FirstOf::new(&vec![&DateTime, &SignedDuration]);
-        let input = String::from("1h");
+        let parser = FirstOf::new(&vec![&SignedDuration, &DateTime]);
+        let input = String::from("1s + bla");
         let p = InputPointer::from_string(&input);
         let result = parser.parse(p);
         assert!(result.is_ok(), "expected ok, was {:?}", result);
+        assert_eq!(result.unwrap().node, Node::Duration(Duration::seconds(1)));
     }
 }

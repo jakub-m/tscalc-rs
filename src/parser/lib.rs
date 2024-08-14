@@ -1,4 +1,4 @@
-use crate::matcher::InputPointer;
+use crate::{matcher::InputPointer, parser};
 
 use chrono::{DateTime, Duration, FixedOffset};
 
@@ -135,39 +135,6 @@ impl Parser for DateTimeParser {
     }
 }
 
-pub struct SequenceParser<'a> {
-    parsers: Vec<&'a dyn Parser>,
-}
-
-//impl<'a> SequenceParser<'a> {
-//    pub fn new(parsers: &Vec<&'a dyn Parser>) -> SequenceParser<'a> {
-//        SequenceParser {
-//            parsers: parsers.clone(),
-//        }
-//    }
-//}
-//
-//impl<'p> Parser for SequenceParser<'p> {
-//    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-//        let mut nodes: Vec<Node> = Vec::new();
-//        let mut current_pointer = Some(pointer.clone());
-//        for i in 0..self.parsers.len() {
-//            let parser = self.parsers[i];
-//            let result = parser.parse(current_pointer.take().unwrap());
-//            if let Ok(parse_ok) = result {
-//                nodes.push(parse_ok.node);
-//                current_pointer = Some(parse_ok.pointer);
-//            } else {
-//                return Err(result.unwrap_err());
-//            }
-//        }
-//        Ok(ParseOk {
-//            pointer: current_pointer.take().unwrap(),
-//            node: Node::Sequence(nodes),
-//        })
-//    }
-//}
-
 #[derive(Debug)]
 struct RepeatedOk<'a> {
     pointer: InputPointer<'a>,
@@ -214,8 +181,44 @@ fn consume_repeated<'a>(
     }
 }
 
+pub struct FirstOf<'a> {
+    pub parsers: Vec<&'a dyn Parser>,
+}
+
+impl<'p> FirstOf<'p> {
+    pub fn new<'a>(parsers: &Vec<&'a dyn Parser>) -> FirstOf<'a> {
+        FirstOf {
+            parsers: parsers.clone(),
+        }
+    }
+}
+
+impl<'p> Parser for FirstOf<'p> {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        return consume_first(&self.parsers, pointer);
+    }
+}
+
+fn consume_first<'a, 'p>(
+    parsers: &Vec<&'p dyn Parser>,
+    pointer: InputPointer<'a>,
+) -> Result<ParseOk<'a>, ParseErr<'a>> {
+    for i in 0..parsers.len() {
+        let parser = parsers.get(i).unwrap();
+        if let Ok(result) = parser.parse(pointer) {
+            return Ok(result);
+        }
+    }
+    return Err(ParseErr {
+        pointer,
+        message: "none of the parsers matched".to_string(),
+    });
+}
+
 mod tests {
-    use super::{consume_repeated, DateTimeParser, Node, Parser, SignedDuration, DAY, HOUR};
+    use super::{
+        consume_repeated, DateTimeParser, FirstOf, Node, Parser, SignedDuration, DAY, HOUR,
+    };
     use crate::matcher::InputPointer;
     use chrono::{DateTime, Duration, FixedOffset, TimeDelta};
 
@@ -283,5 +286,14 @@ mod tests {
             Node::Duration(TimeDelta::seconds(-3)),
         ];
         assert_eq!(result.nodes, expected_nodes);
+    }
+
+    #[test]
+    fn test_parse_first_of() {
+        let parser = FirstOf::new(&vec![&DateTimeParser, &SignedDuration]);
+        let input = String::from("1h");
+        let p = InputPointer::from_string(&input);
+        let result = parser.parse(p);
+        assert!(result.is_ok(), "expected ok, was {:?}", result);
     }
 }

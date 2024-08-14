@@ -108,9 +108,9 @@ fn captures_to_duration(caps: &Captures) -> Result<Duration, String> {
     Ok(Duration::seconds(sign * scale * unit))
 }
 
-pub struct DateTimeParser;
+pub struct DateTime;
 
-impl Parser for DateTimeParser {
+impl Parser for DateTime {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         let pat = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|([+-]\d{2}:\d{2}))$")
             .unwrap();
@@ -217,12 +217,10 @@ fn consume_first<'a, 'p>(
 }
 
 mod tests {
-    use super::{
-        consume_repeated, DateTimeParser, FirstOf, Node, Parser, SignedDuration, DAY, HOUR,
-    };
+    use super::{consume_repeated, DateTime, FirstOf, Node, Parser, SignedDuration, DAY, HOUR};
     use crate::matcher::InputPointer;
     use chrono;
-    use chrono::{DateTime, Duration, FixedOffset, TimeDelta};
+    use chrono::{Duration, FixedOffset, TimeDelta};
 
     #[test]
     fn test_parse_signed_duration() {
@@ -262,7 +260,7 @@ mod tests {
     }
 
     fn check_parse_datetime(input: &str, expected: Option<&str>) {
-        let parser = DateTimeParser;
+        let parser = DateTime;
         let s = String::from(input);
         let p = InputPointer::from_string(&s);
         let result = parser.parse(p);
@@ -292,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_parse_first_of() {
-        let parser = FirstOf::new(&vec![&DateTimeParser, &SignedDuration]);
+        let parser = FirstOf::new(&vec![&DateTime, &SignedDuration]);
         let input = String::from("1h");
         let p = InputPointer::from_string(&input);
         let result = parser.parse(p);

@@ -1,9 +1,6 @@
 use chrono;
 use chrono::FixedOffset;
 
-// TODO
-// Spaces between the terms
-
 /// Example of an expression:
 ///  2000-01-01T00:00:00Z + 1h
 ///  now + 1h
@@ -30,7 +27,6 @@ pub struct InputPointer<'a> {
 
 impl<'a> InputPointer<'a> {
     pub fn from_string(s: &String) -> InputPointer {
-        // TODO deprecate
         InputPointer { input: s, pos: 0 }
     }
     /// Check if the pointer is at the end of the input.
@@ -53,25 +49,6 @@ impl<'a> InputPointer<'a> {
             pos: self.pos + n,
         };
     }
-
-    ///// Peek next N characters.
-    //pub fn peek_n(&self, offset: usize) -> &'a str {
-    //    // TODO Add right bound.
-    //    return &self.input[self.pos..self.pos + offset];
-    //}
-
-    ///// Return the pointer with pos set to specific value
-    //pub fn at_pos(&self, pos: usize) -> InputPointer<'a> {
-    //    let pos = if pos > self.input.len() {
-    //        self.input.len()
-    //    } else {
-    //        pos
-    //    };
-    //    InputPointer {
-    //        input: self.input,
-    //        pos,
-    //    }
-    //}
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -110,20 +87,26 @@ pub struct ExprParser;
 
 impl Parser for ExprParser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        let ws = SkipWhitespace;
         let datetime = DateTime;
         let single_duration = SignedDuration;
         let many_durations = ZeroOrMoreDurations;
-        let date_durations = Sequence::new(&vec![&datetime, &many_durations], |nodes| {
+        let date_durations = Sequence::new(&vec![&ws, &datetime, &ws, &many_durations], |nodes| {
             let nodes = filter_insignificant_nodes(nodes);
             Node::Expr(nodes.to_vec())
         });
         let plus_sign = SkipLiteral::new("+");
         let durations_date_durations = Sequence::new(
             &vec![
+                &ws,
                 &single_duration,
+                &ws,
                 &many_durations,
+                &ws,
                 &plus_sign,
+                &ws,
                 &datetime,
+                &ws,
                 &many_durations,
             ],
             |nodes| Node::Expr(filter_insignificant_nodes(nodes).to_vec()),
@@ -468,6 +451,24 @@ impl Parser for SkipLiteral {
     }
 }
 
+pub struct SkipWhitespace;
+
+impl Parser for SkipWhitespace {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        let mut offset = pointer.rest().len();
+        for (char_pos, c) in pointer.rest().char_indices() {
+            if c != ' ' {
+                offset = char_pos;
+                break;
+            }
+        }
+        Ok(ParseOk {
+            pointer: pointer.advance(offset),
+            node: Node::Skip(" ".to_string()),
+        })
+    }
+}
+
 mod tests {
     use core::hash;
     use std::os::unix::fs::chroot;
@@ -588,6 +589,10 @@ mod tests {
             Some(Node::Expr(vec![datetime_node.clone()])),
         );
         check_expr_parser(
+            " 2000-01-01T00:00:00Z",
+            Some(Node::Expr(vec![datetime_node.clone()])),
+        );
+        check_expr_parser(
             "2000-01-01T00:00:00Z+1s",
             Some(Node::Expr(vec![
                 datetime_node.clone(),
@@ -609,6 +614,13 @@ mod tests {
             ])),
         );
         check_expr_parser(
+            " 1s + 2000-01-01T00:00:00Z ",
+            Some(Node::Expr(vec![
+                duration_1s_node.clone(),
+                datetime_node.clone(),
+            ])),
+        );
+        check_expr_parser(
             "1s+2s+3s+2000-01-01T00:00:00Z+1s+2s+3s",
             Some(Node::Expr(vec![
                 duration_1s_node.clone(),
@@ -620,13 +632,20 @@ mod tests {
                     duration_3s_node.clone(),
                 ]),
             ])),
-        )
-        // TODO "1s + 2000-01-01T00:00:00Z"
-        // TODO "1s - 2000-01-01T00:00:00Z"
-        // TODO "2000-01-01T00:00:00Z + 1s + 2s"
-        // TODO "1s + 2s + 2000-01-01T00:00:00Z + 1s + 2s"
-        // TODO "1s + 2s + 2000-01-01T00:00:00Z"
-        // TODO "2000-01-01T00:00:00Z + 1s + 2s"
+        );
+        //check_expr_parser(
+        //    " 1s + 2s +  3s +  2000-01-01T00:00:00Z +  1s +  2s + 3s ",
+        //    Some(Node::Expr(vec![
+        //        duration_1s_node.clone(),
+        //        Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
+        //        datetime_node.clone(),
+        //        Node::Durations(vec![
+        //            duration_1s_node.clone(),
+        //            duration_2s_node.clone(),
+        //            duration_3s_node.clone(),
+        //        ]),
+        //    ])),
+        //);
     }
 
     fn check_expr_parser(input: &str, expected: Option<Node>) {

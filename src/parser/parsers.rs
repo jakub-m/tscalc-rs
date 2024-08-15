@@ -249,13 +249,11 @@ struct LTrim<'a>(&'a dyn Parser);
 impl<'p> Parser for LTrim<'p> {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         debug_log(format!("LTrim {:?}", pointer.rest()));
-        let mut current_pointer = None;
-        if let Some(offset) = pointer.rest().find(|c: char| !c.is_whitespace()) {
-            current_pointer = Some(pointer.advance(offset))
-        } else {
-            current_pointer = Some(pointer);
-        }
-        self.0.parse(current_pointer.unwrap())
+        let current_pointer = match pointer.rest().find(|c: char| !c.is_whitespace()) {
+            Some(offset) => pointer.advance(offset),
+            None => pointer,
+        };
+        self.0.parse(current_pointer)
     }
 }
 
@@ -421,7 +419,7 @@ impl Parser for SkipWhitespace {
 }
 
 fn debug_log(s: String) {
-    println!("{}", s);
+    // println!("{}", s);
 }
 
 mod tests {

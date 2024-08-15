@@ -119,7 +119,13 @@ impl Parser for ExprParser {
         });
         let plus_sign = SkipLiteral::new("+");
         let durations_date_durations = Sequence::new(
-            &vec![&single_duration, &plus_sign, &datetime, &many_durations],
+            &vec![
+                &single_duration,
+                &many_durations,
+                &plus_sign,
+                &datetime,
+                &many_durations,
+            ],
             |nodes| Node::Expr(filter_insignificant_nodes(nodes).to_vec()),
         );
         let expr_parser = FirstOf::new(vec![&date_durations, &durations_date_durations]);

@@ -558,19 +558,19 @@ mod tests {
                 ]),
             ])),
         );
-        //check_expr_parser(
-        //    " 1s + 2s +  3s +  2000-01-01T00:00:00Z +  1s +  2s + 3s ",
-        //    Some(Node::Expr(vec![
-        //        duration_1s_node.clone(),
-        //        Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
-        //        datetime_node.clone(),
-        //        Node::Durations(vec![
-        //            duration_1s_node.clone(),
-        //            duration_2s_node.clone(),
-        //            duration_3s_node.clone(),
-        //        ]),
-        //    ])),
-        //);
+        check_expr_parser(
+            " 1s + 2s +  3s +  2000-01-01T00:00:00Z +  1s +  2s + 3s ",
+            Some(Node::Expr(vec![
+                duration_1s_node.clone(),
+                Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
+                datetime_node.clone(),
+                Node::Durations(vec![
+                    duration_1s_node.clone(),
+                    duration_2s_node.clone(),
+                    duration_3s_node.clone(),
+                ]),
+            ])),
+        );
     }
 
     fn check_expr_parser(input: &str, expected: Option<Node>) {

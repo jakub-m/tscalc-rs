@@ -36,7 +36,7 @@ impl<'a> InputPointer<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Duration(chrono::Duration),
-    DateTime(chrono::DateTime<FixedOffset>),
+    DateTime(chrono::DateTime<chrono::FixedOffset>),
     /// The nodes are guaranteed to be variants Node::Duration.
     Durations(Vec<Node>),
     /// A string (e.g. a literal) that was matched and is defacto skipped.

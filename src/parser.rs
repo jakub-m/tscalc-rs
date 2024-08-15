@@ -1,5 +1,5 @@
 pub mod core;
-pub mod lib;
+pub mod parsers;
 
 use core::*;
-use lib::*;
+use parsers::*;

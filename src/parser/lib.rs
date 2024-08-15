@@ -3,6 +3,9 @@ use crate::matcher::InputPointer;
 use chrono;
 use chrono::{Duration, FixedOffset};
 
+// TODO
+// Spaces between the terms
+
 /// Example of an expression:
 ///  2000-01-01T00:00:00Z + 1h
 ///  now + 1h
@@ -10,6 +13,11 @@ use chrono::{Duration, FixedOffset};
 ///
 /// Grammar would be:
 /// (delta (+- delta)* +-)? date (+- delta)*
+///
+// Final parser:
+// first of
+//  signed_delta (signed_delta)* "+" date (signed_delta)*
+//  date (signed_delta)*
 use regex::{Captures, Regex};
 
 const SECOND: i64 = 1;
@@ -21,7 +29,6 @@ const DAY: i64 = HOUR * 24;
 pub enum Node {
     Duration(Duration),
     DateTime(chrono::DateTime<FixedOffset>),
-    Sequence(Vec<Node>),
 }
 
 #[derive(Debug)]
@@ -200,6 +207,7 @@ impl<'p> Parser for FirstOf<'p> {
     }
 }
 
+/// Try the parsers one after one and return the result of the first one matching.
 fn consume_first<'a, 'p>(
     parsers: &Vec<&'p dyn Parser>,
     pointer: InputPointer<'a>,
@@ -216,8 +224,52 @@ fn consume_first<'a, 'p>(
     });
 }
 
+///// A list of terms that for expression, like 1h + 2h + 2000-01-01....
+//pub struct ListOfTerms {
+//    parsers: &Vec<&'p dyn Parser>,
+//}
+//
+//impl Parser for ListOfTerms {
+//    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+//        consume_sequence(parsers, pointer)
+//        todo!()
+//    }
+//}
+
+#[derive(Debug)]
+struct SequenceOk<'a> {
+    nodes: Vec<Node>,
+    pointer: InputPointer<'a>,
+}
+
+/// Succeed only if all the parses succeed one after another.
+fn consume_sequence<'a, 'p>(
+    parsers: &Vec<&'p dyn Parser>,
+    pointer: InputPointer<'a>,
+) -> Result<SequenceOk<'a>, ParseErr<'a>> {
+    let mut nodes: Vec<Node> = vec![];
+    let mut current_pointer = Some(pointer);
+    for i in 0..parsers.len() {
+        let parser = parsers.get(i).unwrap();
+        let result = parser.parse(current_pointer.take().unwrap());
+        if let Ok(result_ok) = result {
+            nodes.push(result_ok.node);
+            current_pointer = Some(result_ok.pointer);
+        } else {
+            return Err(result.unwrap_err());
+        }
+    }
+    Ok(SequenceOk {
+        nodes,
+        pointer: current_pointer.take().unwrap(),
+    })
+}
+
 mod tests {
-    use super::{consume_repeated, DateTime, FirstOf, Node, Parser, SignedDuration, DAY, HOUR};
+    use super::{
+        consume_repeated, consume_sequence, DateTime, FirstOf, Node, Parser, SignedDuration, DAY,
+        HOUR,
+    };
     use crate::matcher::InputPointer;
     use chrono;
     use chrono::{Duration, FixedOffset, TimeDelta};
@@ -296,5 +348,21 @@ mod tests {
         let result = parser.parse(p);
         assert!(result.is_ok(), "expected ok, was {:?}", result);
         assert_eq!(result.unwrap().node, Node::Duration(Duration::seconds(1)));
+    }
+
+    #[test]
+    fn test_consume_sequence() {
+        let input = "1s+2s+3s".to_string();
+        let p = InputPointer::from_string(&input);
+        let parsers: Vec<&dyn Parser> = vec![&SignedDuration, &SignedDuration];
+        let result = consume_sequence(&parsers, p);
+        assert!(result.is_ok(), "expected ok, got {:?}", result);
+        assert_eq!(
+            result.unwrap().nodes,
+            vec![
+                Node::Duration(Duration::seconds(1)),
+                Node::Duration(Duration::seconds(2)),
+            ]
+        );
     }
 }

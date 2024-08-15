@@ -576,6 +576,7 @@ mod tests {
             Node::DateTime(chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap());
         let duration_1s_node = Node::Duration(chrono::TimeDelta::seconds(1));
         let duration_2s_node = Node::Duration(chrono::TimeDelta::seconds(2));
+        let duration_3s_node = Node::Duration(chrono::TimeDelta::seconds(3));
         check_expr_parser(
             "2000-01-01T00:00:00Z",
             Some(Node::Expr(vec![datetime_node.clone()])),
@@ -601,6 +602,19 @@ mod tests {
                 datetime_node.clone(),
             ])),
         );
+        check_expr_parser(
+            "1s+2s+3s+2000-01-01T00:00:00Z+1s+2s+3s",
+            Some(Node::Expr(vec![
+                duration_1s_node.clone(),
+                Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
+                datetime_node.clone(),
+                Node::Durations(vec![
+                    duration_1s_node.clone(),
+                    duration_2s_node.clone(),
+                    duration_3s_node.clone(),
+                ]),
+            ])),
+        )
         // TODO "1s + 2000-01-01T00:00:00Z"
         // TODO "1s - 2000-01-01T00:00:00Z"
         // TODO "2000-01-01T00:00:00Z + 1s + 2s"

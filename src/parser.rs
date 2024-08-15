@@ -2,6 +2,6 @@ pub mod core;
 pub mod eval;
 pub mod parsers;
 
-use core::*;
-use eval::*;
-use parsers::*;
+pub use core::*;
+pub use eval::*;
+pub use parsers::*;

@@ -1,45 +1,27 @@
-use std::io::{self, BufRead};
-
-// mod matcher;
-// use matcher::{InputPointer, Matcher};
+use std::{
+    io::{self, BufRead},
+    process,
+};
 
 mod parser;
-use parser::*;
+use parser::{eval_to_datetime, parse_expr};
 
 fn main() {
-    //    let stdin = io::stdin();
-    //    let parser = &parser::FirstOf(
-    //        &parser::Concat {
-    //            parser: &parser::Digit,
-    //            at_least: None,
-    //            at_most: None,
-    //        },
-    //        &parser::Concat {
-    //            parser: &parser::LowerCaseLetter,
-    //            at_least: None,
-    //            at_most: None,
-    //        },
-    //    );
-    //
-    //    for line in stdin.lock().lines() {
-    //        let line = line.unwrap();
-    //        let pointer = &mut InputPointer {
-    //            input: &line,
-    //            pos: 0,
-    //        };
-    //        loop {
-    //            let new_match = match parser.parse(&pointer) {
-    //                Ok(m) => m,
-    //                Err(s) => {
-    //                    println!("error! {}", s);
-    //                    break;
-    //                }
-    //            };
-    //            println!("{:?}", new_match);
-    //            pointer.pos = new_match.pointer.pos;
-    //            if pointer.is_end() {
-    //                break;
-    //            }
-    //        }
-    //    }
+    let stdin = io::stdin();
+
+    for line in stdin.lock().lines() {
+        let line = line.unwrap();
+        let parse_result = parse_expr(&line);
+        if let Err(parse_err) = parse_result {
+            println!("{}", parse_err.message); // TODO better error on parse
+            process::exit(1);
+        }
+        let parse_ok = parse_result.unwrap();
+        let eval_result = eval_to_datetime(parse_ok.node);
+        if let Err(message) = eval_result {
+            println!("{}", message);
+            process::exit(1);
+        }
+        println!("{}", eval_result.unwrap().to_rfc3339());
+    }
 }

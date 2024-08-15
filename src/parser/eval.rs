@@ -61,7 +61,7 @@ mod tests {
     use super::eval_to_datetime;
 
     #[test]
-    fn parse_and_eval() {
+    fn parse_and_eval_sums() {
         let input = "1d + 2h + 2000-01-01T00:00:00Z + 3m + 4s".to_string();
         let result_node = parse_expr(&input).unwrap().node;
         let result = eval_to_datetime(result_node);
@@ -69,6 +69,18 @@ mod tests {
         assert_eq!(
             result.unwrap(),
             chrono::DateTime::parse_from_rfc3339("2000-01-02T02:03:04Z").unwrap()
+        )
+    }
+
+    #[test]
+    fn parse_and_eval_diffs() {
+        let input = "1d + 2h + 2000-01-01T00:00:00Z - 1d - 2h".to_string();
+        let result_node = parse_expr(&input).unwrap().node;
+        let result = eval_to_datetime(result_node);
+        assert!(result.is_ok(), "result not ok");
+        assert_eq!(
+            result.unwrap(),
+            chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap()
         )
     }
 }

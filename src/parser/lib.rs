@@ -1,5 +1,7 @@
+use super::core::{InputPointer, Node, ParseErr, ParseOk, Parser};
 use chrono;
 use chrono::FixedOffset;
+use regex::{Captures, Regex};
 
 /// Example of an expression:
 ///  2000-01-01T00:00:00Z + 1h
@@ -8,76 +10,11 @@ use chrono::FixedOffset;
 ///
 /// Grammar would be:
 /// (delta (+- delta)* +-)? date (+- delta)*
-///
-use regex::{Captures, Regex};
 
 const SECOND: i64 = 1;
 const MINUTE: i64 = SECOND * 60;
 const HOUR: i64 = MINUTE * 60;
 const DAY: i64 = HOUR * 24;
-
-/// A context passed around between the matchers, pointing where in the input is the matched now.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct InputPointer<'a> {
-    /// The input string.
-    pub input: &'a String,
-    /// Position in the input string.
-    pub pos: usize,
-}
-
-impl<'a> InputPointer<'a> {
-    pub fn from_string(s: &String) -> InputPointer {
-        InputPointer { input: s, pos: 0 }
-    }
-    /// Check if the pointer is at the end of the input.
-    pub fn is_end(&self) -> bool {
-        self.pos >= self.input.len()
-    }
-
-    /// Get the remainder of the input (at pos).
-    pub fn rest(&self) -> &str {
-        if self.is_end() {
-            return &"";
-        }
-        &self.input[self.pos..]
-    }
-
-    /// Advance the pointer by n bytes.
-    pub fn advance(&self, n: usize) -> InputPointer<'a> {
-        return InputPointer {
-            input: self.input,
-            pos: self.pos + n,
-        };
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Node {
-    Duration(chrono::Duration),
-    DateTime(chrono::DateTime<FixedOffset>),
-    /// The nodes are guaranteed to be variants Node::Duration.
-    Durations(Vec<Node>),
-    /// A string (e.g. a literal) that was matched and is defacto skipped.
-    Skip(String),
-    /// A sequence of nodes that form an expression.
-    Expr(Vec<Node>),
-}
-
-#[derive(Debug)]
-pub struct ParseOk<'a> {
-    pub pointer: InputPointer<'a>,
-    pub node: Node,
-}
-
-#[derive(Debug)]
-pub struct ParseErr<'a> {
-    pointer: InputPointer<'a>,
-    message: String,
-}
-
-pub trait Parser {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>>;
-}
 
 /// Expression grammar is:
 /// first of
@@ -139,7 +76,7 @@ fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
     return filtered_nodes;
 }
 
-pub struct SignedDuration;
+struct SignedDuration;
 
 impl Parser for SignedDuration {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
@@ -207,7 +144,7 @@ fn captures_to_duration(caps: &Captures) -> Result<chrono::Duration, String> {
     Ok(chrono::Duration::seconds(sign * scale * unit))
 }
 
-pub struct DateTime;
+struct DateTime;
 
 impl Parser for DateTime {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
@@ -236,13 +173,13 @@ impl Parser for DateTime {
 }
 
 /// Sequence of parsers. All the parsers must match.
-pub struct Sequence<'a> {
+struct Sequence<'a> {
     parsers: Vec<&'a dyn Parser>,
     node_fn: fn(&Vec<Node>) -> Node,
 }
 
 impl<'a> Sequence<'a> {
-    pub fn new(parsers: &Vec<&'a dyn Parser>, node_fn: fn(&Vec<Node>) -> Node) -> Sequence<'a> {
+    fn new(parsers: &Vec<&'a dyn Parser>, node_fn: fn(&Vec<Node>) -> Node) -> Sequence<'a> {
         Sequence {
             parsers: parsers.clone(),
             node_fn,
@@ -271,7 +208,7 @@ struct RepeatedOk<'a> {
     nodes: Vec<Node>,
 }
 
-pub struct ZeroOrMoreDurations;
+struct ZeroOrMoreDurations;
 
 impl Parser for ZeroOrMoreDurations {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
@@ -352,12 +289,12 @@ fn consume_repeated<'a>(
     }
 }
 
-pub struct FirstOf<'a> {
-    pub parsers: Vec<&'a dyn Parser>,
+struct FirstOf<'a> {
+    parsers: Vec<&'a dyn Parser>,
 }
 
 impl<'p> FirstOf<'p> {
-    pub fn new<'a>(parsers: Vec<&'a dyn Parser>) -> FirstOf<'a> {
+    fn new<'a>(parsers: Vec<&'a dyn Parser>) -> FirstOf<'a> {
         FirstOf { parsers: parsers }
     }
 }
@@ -384,18 +321,6 @@ fn consume_first<'a, 'p>(
         message: "none of the parsers matched".to_string(),
     });
 }
-
-///// A list of terms that for expression, like 1h + 2h + 2000-01-01....
-//pub struct ListOfTerms {
-//    parsers: &Vec<&'p dyn Parser>,
-//}
-//
-//impl Parser for ListOfTerms {
-//    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-//        consume_sequence(parsers, pointer)
-//        todo!()
-//    }
-//}
 
 #[derive(Debug)]
 struct SequenceOk<'a> {
@@ -426,10 +351,10 @@ fn consume_sequence<'a, 'p>(
     })
 }
 
-pub struct SkipLiteral(String);
+struct SkipLiteral(String);
 
 impl SkipLiteral {
-    pub fn new(literal: &str) -> SkipLiteral {
+    fn new(literal: &str) -> SkipLiteral {
         SkipLiteral(literal.to_string())
     }
 }
@@ -451,7 +376,7 @@ impl Parser for SkipLiteral {
     }
 }
 
-pub struct SkipWhitespace;
+struct SkipWhitespace;
 
 impl Parser for SkipWhitespace {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {

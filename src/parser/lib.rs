@@ -114,11 +114,35 @@ impl Parser for ExprParser {
         //let single_duration = SignedDuration;
         let many_durations = ZeroOrMoreDurations;
         let date_durations = Sequence::new(&vec![&datetime, &many_durations], |nodes| {
+            let nodes = filter_insignificant_nodes(nodes);
             Node::Expr(nodes.to_vec())
         });
         date_durations.parse(pointer)
         //datetime.parse(pointer)
     }
+}
+
+fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
+    let mut filtered_nodes: Vec<Node> = vec![];
+
+    for node in nodes {
+        match node {
+            Node::Duration(_) => filtered_nodes.push(node.clone()),
+            Node::DateTime(_) => filtered_nodes.push(node.clone()),
+            Node::Durations(nodes) => {
+                if !nodes.is_empty() {
+                    filtered_nodes.push(node.clone())
+                }
+            }
+            Node::Expr(nodes) => {
+                if !nodes.is_empty() {
+                    filtered_nodes.push(node.clone())
+                }
+            }
+            Node::Skip(_) => (),
+        }
+    }
+    return filtered_nodes;
 }
 
 pub struct SignedDuration;
@@ -193,7 +217,7 @@ pub struct DateTime;
 
 impl Parser for DateTime {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        let pat = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|([+-]\d{2}:\d{2}))$")
+        let pat = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|([+-]\d{2}:\d{2}))")
             .unwrap();
         let match_ = if let Some(match_) = pat.find(&pointer.rest()) {
             match_.as_str()
@@ -257,7 +281,6 @@ pub struct ZeroOrMoreDurations;
 
 impl Parser for ZeroOrMoreDurations {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        // todo consume repeated , ok with zero
         let result = consume_repeated(
             &SignedDuration,
             pointer,
@@ -548,8 +571,39 @@ mod tests {
     fn test_expr_parser() {
         let datetime_node =
             Node::DateTime(chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap());
-        check_expr_parser("2000-01-01T00:00:00Z", Some(datetime_node.clone()));
-        // check_expr_parser("2000-01-01T00:00:00Z+1h", Some(datetime_node.clone()));
+        let duration_1s_node = Node::Duration(chrono::TimeDelta::seconds(1));
+        let duration_2s_node = Node::Duration(chrono::TimeDelta::seconds(2));
+        //check_expr_parser(
+        //    "2000-01-01T00:00:00Z",
+        //    Some(Node::Expr(vec![datetime_node.clone()])),
+        //);
+        //check_expr_parser(
+        //    "2000-01-01T00:00:00Z+1s",
+        //    Some(Node::Expr(vec![
+        //        datetime_node.clone(),
+        //        Node::Durations(vec![duration_1s_node.clone()]),
+        //    ])),
+        //);
+        //check_expr_parser(
+        //    "2000-01-01T00:00:00Z+1s+2s",
+        //    Some(Node::Expr(vec![
+        //        datetime_node.clone(),
+        //        Node::Durations(vec![duration_1s_node.clone(), duration_2s_node.clone()]),
+        //    ])),
+        //);
+        check_expr_parser(
+            "1s+2000-01-01T00:00:00Z",
+            Some(Node::Expr(vec![
+                datetime_node.clone(),
+                Node::Durations(vec![duration_1s_node.clone(), datetime_node.clone()]),
+            ])),
+        );
+        // TODO "1s + 2000-01-01T00:00:00Z"
+        // TODO "1s - 2000-01-01T00:00:00Z"
+        // TODO "2000-01-01T00:00:00Z + 1s + 2s"
+        // TODO "1s + 2s + 2000-01-01T00:00:00Z + 1s + 2s"
+        // TODO "1s + 2s + 2000-01-01T00:00:00Z"
+        // TODO "2000-01-01T00:00:00Z + 1s + 2s"
     }
 
     fn check_expr_parser(input: &str, expected: Option<Node>) {

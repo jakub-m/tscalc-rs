@@ -1,7 +1,7 @@
 use std::io::{self, BufRead};
 
-mod matcher;
-use matcher::{InputPointer, Matcher};
+// mod matcher;
+// use matcher::{InputPointer, Matcher};
 
 mod parser;
 use parser::*;

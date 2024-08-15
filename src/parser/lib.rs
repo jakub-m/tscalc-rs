@@ -111,14 +111,19 @@ pub struct ExprParser;
 impl Parser for ExprParser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         let datetime = DateTime;
-        //let single_duration = SignedDuration;
+        let single_duration = SignedDuration;
         let many_durations = ZeroOrMoreDurations;
         let date_durations = Sequence::new(&vec![&datetime, &many_durations], |nodes| {
             let nodes = filter_insignificant_nodes(nodes);
             Node::Expr(nodes.to_vec())
         });
-        date_durations.parse(pointer)
-        //datetime.parse(pointer)
+        let plus_sign = SkipLiteral::new("+");
+        let durations_date_durations = Sequence::new(
+            &vec![&single_duration, &plus_sign, &datetime, &many_durations],
+            |nodes| Node::Expr(filter_insignificant_nodes(nodes).to_vec()),
+        );
+        let expr_parser = FirstOf::new(vec![&date_durations, &durations_date_durations]);
+        expr_parser.parse(pointer)
     }
 }
 
@@ -363,10 +368,8 @@ pub struct FirstOf<'a> {
 }
 
 impl<'p> FirstOf<'p> {
-    pub fn new<'a>(parsers: &Vec<&'a dyn Parser>) -> FirstOf<'a> {
-        FirstOf {
-            parsers: parsers.clone(),
-        }
+    pub fn new<'a>(parsers: Vec<&'a dyn Parser>) -> FirstOf<'a> {
+        FirstOf { parsers: parsers }
     }
 }
 
@@ -543,7 +546,7 @@ mod tests {
 
     #[test]
     fn test_parse_first_of() {
-        let parser = FirstOf::new(&vec![&SignedDuration, &DateTime]);
+        let parser = FirstOf::new(vec![&SignedDuration, &DateTime]);
         let input = String::from("1s + bla");
         let p = InputPointer::from_string(&input);
         let result = parser.parse(p);
@@ -573,29 +576,29 @@ mod tests {
             Node::DateTime(chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap());
         let duration_1s_node = Node::Duration(chrono::TimeDelta::seconds(1));
         let duration_2s_node = Node::Duration(chrono::TimeDelta::seconds(2));
-        //check_expr_parser(
-        //    "2000-01-01T00:00:00Z",
-        //    Some(Node::Expr(vec![datetime_node.clone()])),
-        //);
-        //check_expr_parser(
-        //    "2000-01-01T00:00:00Z+1s",
-        //    Some(Node::Expr(vec![
-        //        datetime_node.clone(),
-        //        Node::Durations(vec![duration_1s_node.clone()]),
-        //    ])),
-        //);
-        //check_expr_parser(
-        //    "2000-01-01T00:00:00Z+1s+2s",
-        //    Some(Node::Expr(vec![
-        //        datetime_node.clone(),
-        //        Node::Durations(vec![duration_1s_node.clone(), duration_2s_node.clone()]),
-        //    ])),
-        //);
+        check_expr_parser(
+            "2000-01-01T00:00:00Z",
+            Some(Node::Expr(vec![datetime_node.clone()])),
+        );
+        check_expr_parser(
+            "2000-01-01T00:00:00Z+1s",
+            Some(Node::Expr(vec![
+                datetime_node.clone(),
+                Node::Durations(vec![duration_1s_node.clone()]),
+            ])),
+        );
+        check_expr_parser(
+            "2000-01-01T00:00:00Z+1s+2s",
+            Some(Node::Expr(vec![
+                datetime_node.clone(),
+                Node::Durations(vec![duration_1s_node.clone(), duration_2s_node.clone()]),
+            ])),
+        );
         check_expr_parser(
             "1s+2000-01-01T00:00:00Z",
             Some(Node::Expr(vec![
+                duration_1s_node.clone(),
                 datetime_node.clone(),
-                Node::Durations(vec![duration_1s_node.clone(), datetime_node.clone()]),
             ])),
         );
         // TODO "1s + 2000-01-01T00:00:00Z"
@@ -613,7 +616,7 @@ mod tests {
         let result = parser.parse(pointer);
         if let Some(expected) = expected {
             assert!(result.is_ok(), "expected ok got {:?}", result);
-            assert_eq!(result.unwrap().node, expected)
+            assert_eq!(result.unwrap().node, expected, "input: {}", input)
         } else {
             assert!(!result.is_ok(), "expected not ok got {:?}", result);
         }

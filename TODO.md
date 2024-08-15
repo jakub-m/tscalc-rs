@@ -1,0 +1,5 @@
+- Better parsing errors (with position in the input)
+- Handle "now" as new literal token like `now + 1h`
+- Handle functions like `round(<date>, day) + 1h`
+- Handle timestmap
+- Convert to timestamp

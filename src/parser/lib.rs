@@ -1,5 +1,5 @@
 use chrono;
-use chrono::{Duration, FixedOffset};
+use chrono::FixedOffset;
 
 // TODO
 // Spaces between the terms
@@ -12,10 +12,6 @@ use chrono::{Duration, FixedOffset};
 /// Grammar would be:
 /// (delta (+- delta)* +-)? date (+- delta)*
 ///
-// Final parser:
-// first of
-//  signed_delta (signed_delta)* "+" date (signed_delta)*
-//  date (signed_delta)*
 use regex::{Captures, Regex};
 
 const SECOND: i64 = 1;
@@ -80,8 +76,12 @@ impl<'a> InputPointer<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum Node {
-    Duration(Duration),
+    Duration(chrono::Duration),
     DateTime(chrono::DateTime<FixedOffset>),
+    /// The nodes are guaranteed to be variants Node::Duration.
+    Durations(Vec<Node>),
+    /// A string (e.g. a literal) that was matched and is defacto skipped.
+    Skip(String),
 }
 
 #[derive(Debug)]
@@ -99,6 +99,19 @@ pub struct ParseErr<'a> {
 pub trait Parser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>>;
 }
+
+/// Expression grammar
+/// first of
+///  signed_delta (signed_delta)* "+" date (signed_delta)*
+///  date (signed_delta)*
+// pub struct ExprParser;
+
+//impl Parser for ExprParser {
+//    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+//        let parser = FirstOf::new(vec![&SignedDuration]);
+//        todo!()
+//    }
+//}
 
 pub struct SignedDuration;
 
@@ -124,7 +137,7 @@ impl Parser for SignedDuration {
     }
 }
 
-fn captures_to_duration(caps: &Captures) -> Result<Duration, String> {
+fn captures_to_duration(caps: &Captures) -> Result<chrono::Duration, String> {
     let sign: i64 = if let Some(sign) = caps.get(1) {
         let sign = sign.as_str();
         if sign == "+" {
@@ -165,7 +178,7 @@ fn captures_to_duration(caps: &Captures) -> Result<Duration, String> {
         return Err("unknown unit".to_string());
     };
 
-    Ok(Duration::seconds(sign * scale * unit))
+    Ok(chrono::Duration::seconds(sign * scale * unit))
 }
 
 pub struct DateTime;
@@ -200,6 +213,31 @@ impl Parser for DateTime {
 struct RepeatedOk<'a> {
     pointer: InputPointer<'a>,
     nodes: Vec<Node>,
+}
+
+pub struct ListOfDurations;
+
+impl Parser for ListOfDurations {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        // todo consume repeated , ok with zero
+        let result = consume_repeated(&SignedDuration, pointer, "failed to match durations");
+        let mut nodes = Vec::new();
+        if let Ok(result) = result {
+            for node in result.nodes {
+                if let Node::Duration(delta) = node {
+                    nodes.push(Node::Duration(delta));
+                } else {
+                    panic!("Expected duration node but got: {:?}", node);
+                }
+            }
+            return Ok(ParseOk {
+                pointer: result.pointer,
+                node: Node::Durations(nodes),
+            });
+        } else {
+            return Err(result.unwrap_err());
+        }
+    }
 }
 
 fn consume_repeated<'a>(
@@ -316,6 +354,31 @@ fn consume_sequence<'a, 'p>(
         nodes,
         pointer: current_pointer.take().unwrap(),
     })
+}
+
+pub struct SkipLiteral(String);
+
+impl SkipLiteral {
+    pub fn new(literal: &str) -> SkipLiteral {
+        SkipLiteral(literal.to_string())
+    }
+}
+
+impl Parser for SkipLiteral {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        if pointer.rest().starts_with(&self.0) {
+            let pointer = pointer.advance(self.0.len());
+            return Ok(ParseOk {
+                pointer,
+                node: Node::Skip(self.0.to_string()),
+            });
+        } else {
+            return Err(ParseErr {
+                pointer,
+                message: format!("expected {}", self.0),
+            });
+        }
+    }
 }
 
 mod tests {

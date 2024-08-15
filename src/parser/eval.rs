@@ -1,0 +1,74 @@
+use super::Node;
+use chrono::{DateTime, FixedOffset};
+
+pub fn eval_to_datetime(node: Node) -> Result<DateTime<FixedOffset>, String> {
+    // Pass some dummy default state.
+    match eval(State::None, node) {
+        Ok(state) => match state {
+            State::DateTime(datetime) => Ok(datetime),
+            State::TimeDelta(_) => Err("the result of evaluation was duration".to_string()),
+            State::None => Err("BUG: the result of evaluation was State::None".to_string()),
+        },
+        Err(m) => Err(m),
+    }
+}
+
+enum State {
+    TimeDelta(chrono::TimeDelta),
+    DateTime(chrono::DateTime<chrono::FixedOffset>),
+    None,
+}
+
+fn eval(state: State, node: Node) -> Result<State, String> {
+    match node {
+        Node::Duration(delta) => match state {
+            State::TimeDelta(prev_delta) => {
+                Ok(State::TimeDelta(delta.checked_add(&prev_delta).unwrap()))
+            }
+            State::DateTime(datetime) => Ok(State::DateTime(datetime + delta)),
+            State::None => Ok(State::TimeDelta(delta)),
+        },
+        Node::DateTime(datetime) => match state {
+            State::TimeDelta(delta) => Ok(State::DateTime(datetime + delta)),
+            State::DateTime(_) => Err("tried to add two datetimes".to_string()),
+            State::None => Ok(State::DateTime(datetime)),
+        },
+        Node::Durations(nodes) => eval_list(state, nodes),
+        Node::Expr(nodes) => eval_list(state, nodes),
+        Node::Skip(_) => Ok(state),
+    }
+}
+
+fn eval_list(state: State, nodes: Vec<Node>) -> Result<State, String> {
+    let mut current_state = Some(state);
+    for node in nodes {
+        let result = eval(current_state.take().unwrap(), node);
+        if let Ok(result_state) = result {
+            current_state = Some(result_state);
+        } else {
+            return result;
+        }
+    }
+    if let Some(state) = current_state {
+        Ok(state)
+    } else {
+        Err("BUG: eval_list resulted in Option::None state".to_string())
+    }
+}
+
+mod tests {
+    use super::super::parse_expr;
+    use super::eval_to_datetime;
+
+    #[test]
+    fn parse_and_eval() {
+        let input = "1d + 2h + 2000-01-01T00:00:00Z + 3m + 4s".to_string();
+        let result_node = parse_expr(&input).unwrap().node;
+        let result = eval_to_datetime(result_node);
+        assert!(result.is_ok(), "result not ok");
+        assert_eq!(
+            result.unwrap(),
+            chrono::DateTime::parse_from_rfc3339("2000-01-02T02:03:04Z").unwrap()
+        )
+    }
+}

@@ -1,26 +1,23 @@
 use super::core::{InputPointer, Node, ParseErr, ParseOk, Parser};
 use chrono;
-use chrono::FixedOffset;
 use regex::{Captures, Regex};
-
-/// Example of an expression:
-///  2000-01-01T00:00:00Z + 1h
-///  now + 1h
-///  1h - 1h + now -2h
-///
-/// Grammar would be:
-/// (delta (+- delta)* +-)? date (+- delta)*
 
 const SECOND: i64 = 1;
 const MINUTE: i64 = SECOND * 60;
 const HOUR: i64 = MINUTE * 60;
 const DAY: i64 = HOUR * 24;
 
+pub fn parse_expr<'a>(input: &'a String) -> Result<ParseOk<'a>, ParseErr<'a>> {
+    let pointer = InputPointer::from_string(input);
+    ExprParser.parse(pointer)
+}
+
 /// Expression grammar is:
-/// first of
-///  - date (signed_duration)*
-///  - signed_duration (signed_duration)* "+" date (signed_duration)*
-pub struct ExprParser;
+///
+/// - First of:
+///   - date (signed_duration)*
+///   - signed_duration (signed_duration)* "+" date (signed_duration)*
+struct ExprParser;
 
 impl Parser for ExprParser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
@@ -418,7 +415,7 @@ impl Parser for SkipWhitespace {
     }
 }
 
-fn debug_log(s: String) {
+fn debug_log(_s: String) {
     // println!("{}", s);
 }
 

@@ -54,27 +54,27 @@ impl<'a> InputPointer<'a> {
         };
     }
 
-    /// Peek next N characters.
-    pub fn peek_n(&self, offset: usize) -> &'a str {
-        // TODO Add right bound.
-        return &self.input[self.pos..self.pos + offset];
-    }
+    ///// Peek next N characters.
+    //pub fn peek_n(&self, offset: usize) -> &'a str {
+    //    // TODO Add right bound.
+    //    return &self.input[self.pos..self.pos + offset];
+    //}
 
-    /// Return the pointer with pos set to specific value
-    pub fn at_pos(&self, pos: usize) -> InputPointer<'a> {
-        let pos = if pos > self.input.len() {
-            self.input.len()
-        } else {
-            pos
-        };
-        InputPointer {
-            input: self.input,
-            pos,
-        }
-    }
+    ///// Return the pointer with pos set to specific value
+    //pub fn at_pos(&self, pos: usize) -> InputPointer<'a> {
+    //    let pos = if pos > self.input.len() {
+    //        self.input.len()
+    //    } else {
+    //        pos
+    //    };
+    //    InputPointer {
+    //        input: self.input,
+    //        pos,
+    //    }
+    //}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Duration(chrono::Duration),
     DateTime(chrono::DateTime<FixedOffset>),
@@ -82,6 +82,8 @@ pub enum Node {
     Durations(Vec<Node>),
     /// A string (e.g. a literal) that was matched and is defacto skipped.
     Skip(String),
+    /// A sequence of nodes that form an expression.
+    Expr(Vec<Node>),
 }
 
 #[derive(Debug)]
@@ -100,18 +102,24 @@ pub trait Parser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>>;
 }
 
-/// Expression grammar
+/// Expression grammar is:
 /// first of
-///  signed_delta (signed_delta)* "+" date (signed_delta)*
-///  date (signed_delta)*
-// pub struct ExprParser;
+///  - date (signed_duration)*
+///  - signed_duration (signed_duration)* "+" date (signed_duration)*
+pub struct ExprParser;
 
-//impl Parser for ExprParser {
-//    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-//        let parser = FirstOf::new(vec![&SignedDuration]);
-//        todo!()
-//    }
-//}
+impl Parser for ExprParser {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        let datetime = DateTime;
+        //let single_duration = SignedDuration;
+        let many_durations = ZeroOrMoreDurations;
+        let date_durations = Sequence::new(&vec![&datetime, &many_durations], |nodes| {
+            Node::Expr(nodes.to_vec())
+        });
+        date_durations.parse(pointer)
+        //datetime.parse(pointer)
+    }
+}
 
 pub struct SignedDuration;
 
@@ -209,18 +217,53 @@ impl Parser for DateTime {
     }
 }
 
+/// Sequence of parsers. All the parsers must match.
+pub struct Sequence<'a> {
+    parsers: Vec<&'a dyn Parser>,
+    node_fn: fn(&Vec<Node>) -> Node,
+}
+
+impl<'a> Sequence<'a> {
+    pub fn new(parsers: &Vec<&'a dyn Parser>, node_fn: fn(&Vec<Node>) -> Node) -> Sequence<'a> {
+        Sequence {
+            parsers: parsers.clone(),
+            node_fn,
+        }
+    }
+}
+
+impl<'p> Parser for Sequence<'p> {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        let result = consume_sequence(&self.parsers, pointer);
+        if let Ok(result) = result {
+            let result_node = (self.node_fn)(&result.nodes);
+            return Ok(ParseOk {
+                pointer: result.pointer,
+                node: result_node,
+            });
+        } else {
+            return Err(result.unwrap_err());
+        }
+    }
+}
+
 #[derive(Debug)]
 struct RepeatedOk<'a> {
     pointer: InputPointer<'a>,
     nodes: Vec<Node>,
 }
 
-pub struct ListOfDurations;
+pub struct ZeroOrMoreDurations;
 
-impl Parser for ListOfDurations {
+impl Parser for ZeroOrMoreDurations {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         // todo consume repeated , ok with zero
-        let result = consume_repeated(&SignedDuration, pointer, "failed to match durations");
+        let result = consume_repeated(
+            &SignedDuration,
+            pointer,
+            ConsumeRepeated::ZeroOrMore,
+            "failed to match durations",
+        );
         let mut nodes = Vec::new();
         if let Ok(result) = result {
             for node in result.nodes {
@@ -240,13 +283,19 @@ impl Parser for ListOfDurations {
     }
 }
 
+enum ConsumeRepeated {
+    ZeroOrMore,
+    OneOrMore,
+}
+
 fn consume_repeated<'a>(
     parser: &'a dyn Parser,
     pointer: InputPointer<'a>,
+    zero_config: ConsumeRepeated,
     error_message: &str,
 ) -> Result<RepeatedOk<'a>, ParseErr<'a>> {
     let mut nodes: Vec<Node> = Vec::new();
-    let mut current_pointer = Some(pointer.clone());
+    let mut current_pointer = Some(pointer);
     loop {
         let result = parser.parse(current_pointer.take().unwrap());
         if let Ok(result_ok) = result {
@@ -263,10 +312,16 @@ fn consume_repeated<'a>(
             pointer,
             "BUG, nodes are empty but the pointers are different"
         );
-        return Err(ParseErr {
-            pointer: current_pointer.unwrap(),
-            message: String::from(error_message),
-        });
+        return match zero_config {
+            ConsumeRepeated::ZeroOrMore => Ok(RepeatedOk {
+                pointer,
+                nodes: vec![],
+            }),
+            ConsumeRepeated::OneOrMore => Err(ParseErr {
+                pointer,
+                message: String::from(error_message),
+            }),
+        };
     } else {
         assert_ne!(
             current_pointer.unwrap(),
@@ -382,9 +437,12 @@ impl Parser for SkipLiteral {
 }
 
 mod tests {
+    use core::hash;
+    use std::os::unix::fs::chroot;
+
     use super::{
-        consume_repeated, consume_sequence, DateTime, FirstOf, InputPointer, Node, Parser,
-        SignedDuration, DAY, HOUR,
+        consume_repeated, consume_sequence, ConsumeRepeated, DateTime, ExprParser, FirstOf,
+        InputPointer, Node, Parser, SignedDuration, DAY, HOUR,
     };
     use chrono;
     use chrono::{Duration, FixedOffset, TimeDelta};
@@ -444,7 +502,12 @@ mod tests {
     #[test]
     fn test_consume_repeated() {
         let input = "1s+2s-3s".to_string();
-        let result = consume_repeated(&SignedDuration, InputPointer::from_string(&input), "bla");
+        let result = consume_repeated(
+            &SignedDuration,
+            InputPointer::from_string(&input),
+            ConsumeRepeated::OneOrMore,
+            "bla",
+        );
         assert!(result.is_ok(), "expected ok, was: {:?}", result);
         let result = result.unwrap();
         let expected_nodes = vec![
@@ -479,5 +542,26 @@ mod tests {
                 Node::Duration(Duration::seconds(2)),
             ]
         );
+    }
+
+    #[test]
+    fn test_expr_parser() {
+        let datetime_node =
+            Node::DateTime(chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap());
+        check_expr_parser("2000-01-01T00:00:00Z", Some(datetime_node.clone()));
+        // check_expr_parser("2000-01-01T00:00:00Z+1h", Some(datetime_node.clone()));
+    }
+
+    fn check_expr_parser(input: &str, expected: Option<Node>) {
+        let parser = ExprParser;
+        let input = input.to_string();
+        let pointer = InputPointer::from_string(&input);
+        let result = parser.parse(pointer);
+        if let Some(expected) = expected {
+            assert!(result.is_ok(), "expected ok got {:?}", result);
+            assert_eq!(result.unwrap().node, expected)
+        } else {
+            assert!(!result.is_ok(), "expected not ok got {:?}", result);
+        }
     }
 }

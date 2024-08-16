@@ -1,4 +1,5 @@
-- Better parsing errors (with position in the input)
+- Better parsing errors (with position in the input) - position is wrong
+- Err on not matching all the input in mainkj
 - Handle "now" as new literal token like `now + 1h`
 - Handle functions like `round(<date>, day) + 1h`
 - Handle timestmap

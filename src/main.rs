@@ -26,8 +26,9 @@ fn parse_and_eval(input: &String) -> Result<String, String> {
     let parse_result = parse_expr(input);
     if let Err(parse_err) = parse_result {
         let mut m = String::from("");
-        write!(m, "{}\n{}", parse_err.message, parse_err.pointer.input).unwrap();
+        write!(m, "{}", parse_err.pointer.input).unwrap();
         write!(m, "\n{}^", "_".repeat(parse_err.pointer.pos)).unwrap();
+        write!(m, "\n{}", parse_err.message).unwrap();
         return Err(m);
     }
     let parse_ok = parse_result.unwrap();
@@ -36,4 +37,20 @@ fn parse_and_eval(input: &String) -> Result<String, String> {
         return Err(message);
     }
     return Ok(eval_result.unwrap().to_rfc3339());
+}
+
+mod tests {
+    use crate::parse_and_eval;
+
+    #[test]
+    fn test_eval_garbage_on_right() {
+        let input = "1h + 2h + 2000-01-01T00:00:00Z garbage".to_string();
+        let result = parse_and_eval(&input);
+        assert!(
+            result.is_err(),
+            "expected err for input {:?}, got {:?}",
+            input,
+            result
+        );
+    }
 }

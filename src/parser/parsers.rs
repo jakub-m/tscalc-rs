@@ -9,7 +9,20 @@ const DAY: i64 = HOUR * 24;
 
 pub fn parse_expr<'a>(input: &'a String) -> Result<ParseOk<'a>, ParseErr<'a>> {
     let pointer = InputPointer::from_string(input);
-    ExprParser.parse(pointer)
+    let result = ExprParser.parse(pointer);
+    return match result {
+        Ok(parse_ok) => {
+            if parse_ok.pointer.is_end() {
+                Ok(parse_ok)
+            } else {
+                Err(ParseErr {
+                    pointer: parse_ok.pointer,
+                    message: "not all input matched".to_string(),
+                })
+            }
+        }
+        Err(parse_err) => Err(parse_err),
+    };
 }
 
 /// Expression grammar is:

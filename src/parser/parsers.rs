@@ -282,6 +282,7 @@ fn consume_repeated<'a, 'p>(
     let mut current_pointer = Some(pointer);
     loop {
         let result = parser.parse(current_pointer.take().unwrap());
+        debug_log(format!("consume_repeated result {:?}", result));
         if let Ok(result_ok) = result {
             nodes.push(result_ok.node);
             current_pointer = Some(result_ok.pointer);
@@ -342,14 +343,30 @@ fn consume_first<'a, 'p>(
     parsers: &Vec<&'p dyn Parser>,
     pointer: InputPointer<'a>,
 ) -> Result<ParseOk<'a>, ParseErr<'a>> {
+    let mut furthest_err_pointer = None;
     for i in 0..parsers.len() {
         let parser = parsers.get(i).unwrap();
-        if let Ok(result) = parser.parse(pointer) {
-            return Ok(result);
+        let result = parser.parse(pointer);
+        debug_log(format!("consume_first result {:?}", result));
+        match result {
+            Ok(parse_ok) => return Ok(parse_ok),
+            Err(parse_err) => {
+                if furthest_err_pointer.is_none() {
+                    furthest_err_pointer = Some(parse_err.pointer)
+                } else {
+                    // If all the parsers fail, as an error reason return the error that advanced the most in the parsing.
+                    let curr_err_pointer = furthest_err_pointer.take().unwrap();
+                    if parse_err.pointer.pos > curr_err_pointer.pos {
+                        furthest_err_pointer = Some(parse_err.pointer)
+                    } else {
+                        furthest_err_pointer = Some(curr_err_pointer)
+                    }
+                }
+            }
         }
     }
     return Err(ParseErr {
-        pointer,
+        pointer: furthest_err_pointer.unwrap(),
         message: "none of the parsers matched".to_string(),
     });
 }
@@ -370,6 +387,7 @@ fn consume_sequence<'a, 'p>(
     for i in 0..parsers.len() {
         let parser = parsers.get(i).unwrap();
         let result = parser.parse(current_pointer.take().unwrap());
+        debug_log(format!("consume_sequence result {:?}", result));
         if let Ok(result_ok) = result {
             nodes.push(result_ok.node);
             current_pointer = Some(result_ok.pointer);
@@ -429,7 +447,7 @@ impl Parser for SkipWhitespace {
 }
 
 fn debug_log(_s: String) {
-    // println!("{}", s);
+    // println!("{}", _s);
 }
 
 mod tests {

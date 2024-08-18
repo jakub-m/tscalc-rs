@@ -1,4 +1,5 @@
 - Handle "now" as new literal token like `now + 1h`
 - Handle functions like `round(<date>, day) + 1h`
 - Handle timestmap
-- Convert to timestamp
+- When no input, return "now"
+- Handle subtraction of the dates. Beware of botched syntax, exhaustive tests!

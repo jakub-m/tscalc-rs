@@ -3,3 +3,4 @@
 - Handle timestmap
 - When no input, return "now"
 - Handle subtraction of the dates. Beware of botched syntax, exhaustive tests!
+- Handle input after -- instead of stdin

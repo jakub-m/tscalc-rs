@@ -10,19 +10,16 @@ const DAY: i64 = HOUR * 24;
 pub fn parse_expr<'a>(input: &'a String) -> Result<ParseOk<'a>, ParseErr<'a>> {
     let pointer = InputPointer::from_string(input);
     let result = ExprParser.parse(pointer);
-    return match result {
-        Ok(parse_ok) => {
-            if parse_ok.pointer.is_end() {
-                Ok(parse_ok)
-            } else {
-                Err(ParseErr {
-                    pointer: parse_ok.pointer,
-                    message: "not all input matched".to_string(),
-                })
-            }
+    result.map(|parse_ok| {
+        if parse_ok.pointer.is_end() {
+            Ok(parse_ok)
+        } else {
+            Err(ParseErr {
+                pointer: parse_ok.pointer,
+                message: "not all input matched".to_string(),
+            })
         }
-        Err(parse_err) => Err(parse_err),
-    };
+    })?
 }
 
 /// Expression grammar is:
@@ -204,15 +201,13 @@ impl<'p> Parser for Sequence<'p> {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         debug_log(format!("Sequence {:?}", pointer.rest()));
         let result = consume_sequence(&self.parsers, pointer);
-        if let Ok(result) = result {
+        result.map(|result| {
             let result_node = (self.node_fn)(&result.nodes);
-            return Ok(ParseOk {
+            Ok(ParseOk {
                 pointer: result.pointer,
                 node: result_node,
-            });
-        } else {
-            return Err(result.unwrap_err());
-        }
+            })
+        })?
     }
 }
 
@@ -235,7 +230,7 @@ impl Parser for ZeroOrMoreDurations {
             "failed to match durations",
         );
         let mut nodes = Vec::new();
-        if let Ok(result) = result {
+        result.map(|result| {
             for node in result.nodes {
                 if let Node::Duration(delta) = node {
                     nodes.push(Node::Duration(delta));
@@ -247,9 +242,7 @@ impl Parser for ZeroOrMoreDurations {
                 pointer: result.pointer,
                 node: Node::Durations(nodes),
             });
-        } else {
-            return Err(result.unwrap_err());
-        }
+        })?
     }
 }
 
@@ -446,6 +439,7 @@ impl Parser for SkipWhitespace {
     }
 }
 
+// TODO use debug! macro
 fn debug_log(_s: String) {
     // println!("{}", _s);
 }

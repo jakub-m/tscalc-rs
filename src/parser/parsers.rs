@@ -34,12 +34,17 @@ impl Parser for ExprParser {
         debug_log(format!("ExprParer {:?}", pointer.rest()));
         let ws = SkipWhitespace;
         let datetime = DateTime;
+        let now = LiteralNode::new("now", Node::Now);
+        let datetime_or_now = FirstOf::new(vec![&datetime, &now]);
         let single_duration = SignedDuration;
         let many_durations = ZeroOrMoreDurations;
-        let date_durations = Sequence::new(&vec![&ws, &datetime, &ws, &many_durations], |nodes| {
-            let nodes = filter_insignificant_nodes(nodes);
-            Node::Expr(nodes.to_vec())
-        });
+        let date_durations = Sequence::new(
+            &vec![&ws, &datetime_or_now, &ws, &many_durations],
+            |nodes| {
+                let nodes = filter_insignificant_nodes(nodes);
+                Node::Expr(nodes.to_vec())
+            },
+        );
         let plus_sign = SkipLiteral::new("+");
         let durations_date_durations = Sequence::new(
             &vec![
@@ -50,7 +55,7 @@ impl Parser for ExprParser {
                 &ws,
                 &plus_sign,
                 &ws,
-                &datetime,
+                &datetime_or_now,
                 &ws,
                 &many_durations,
             ],
@@ -439,10 +444,28 @@ struct LiteralNode {
     /// Node to return.
     node: Node,
 }
+impl LiteralNode {
+    fn new(literal: &str, node: Node) -> LiteralNode {
+        LiteralNode {
+            literal: literal.to_string(),
+            node: node.clone(),
+        }
+    }
+}
 
 impl Parser for LiteralNode {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        todo!()
+        if pointer.rest().starts_with(&self.literal) {
+            Ok(ParseOk {
+                pointer: pointer.advance(self.literal.len()),
+                node: self.node.clone(),
+            })
+        } else {
+            Err(ParseErr {
+                pointer,
+                message: format!("expected literal {:?}", self.literal),
+            })
+        }
     }
 }
 

@@ -79,6 +79,7 @@ enum OutputFormat {
 }
 
 fn parse_and_eval(input: &String, output_format: OutputFormat) -> Result<String, String> {
+    let now = chrono::Utc::now();
     let parse_result = parse_expr(input);
     if let Err(parse_err) = parse_result {
         let mut m = String::from("");
@@ -88,7 +89,7 @@ fn parse_and_eval(input: &String, output_format: OutputFormat) -> Result<String,
         return Err(m);
     }
     let parse_ok = parse_result.unwrap();
-    let eval_result = eval_to_datetime(parse_ok.node);
+    let eval_result = eval_to_datetime(parse_ok.node, now.into());
     if let Err(message) = eval_result {
         return Err(message);
     }

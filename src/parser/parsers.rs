@@ -66,14 +66,8 @@ fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
 
     for node in nodes {
         match node {
-            Node::Duration(_) => filtered_nodes.push(node.clone()),
-            Node::DateTime(_) => filtered_nodes.push(node.clone()),
-            Node::Durations(nodes) => {
-                if !nodes.is_empty() {
-                    filtered_nodes.push(node.clone())
-                }
-            }
-            Node::Expr(nodes) => {
+            Node::Duration(_) | Node::DateTime(_) | Node::Now => filtered_nodes.push(node.clone()),
+            Node::Durations(nodes) | Node::Expr(nodes) => {
                 if !nodes.is_empty() {
                     filtered_nodes.push(node.clone())
                 }
@@ -188,7 +182,6 @@ struct Sequence<'a> {
     node_fn: fn(&Vec<Node>) -> Node,
 }
 
-// TODO move node_fn to some .map() method.
 impl<'a> Sequence<'a> {
     fn new(parsers: &Vec<&'a dyn Parser>, node_fn: fn(&Vec<Node>) -> Node) -> Sequence<'a> {
         Sequence {
@@ -437,6 +430,19 @@ impl Parser for SkipWhitespace {
             pointer: pointer.advance(offset),
             node: Node::Skip(" ".to_string()),
         })
+    }
+}
+
+struct LiteralNode {
+    /// Literal to match.
+    literal: String,
+    /// Node to return.
+    node: Node,
+}
+
+impl Parser for LiteralNode {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        todo!()
     }
 }
 

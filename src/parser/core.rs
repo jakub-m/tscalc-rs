@@ -43,8 +43,8 @@ pub enum Node {
     Skip(String),
     /// A sequence of nodes that form an expression.
     Expr(Vec<Node>),
-    // "now" literal that evaluates to current time.
-    // Now,
+    /// "now" literal that evaluates to current time.
+    Now,
 }
 
 #[derive(Debug)]

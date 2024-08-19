@@ -5,7 +5,7 @@ use std::{
 };
 
 mod parser;
-use parser::{eval, eval_to_datetime, parse_expr};
+use parser::{eval_to_datetime, parse_expr};
 use std::fmt::Write;
 
 fn main() {

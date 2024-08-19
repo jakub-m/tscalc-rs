@@ -188,6 +188,7 @@ struct Sequence<'a> {
     node_fn: fn(&Vec<Node>) -> Node,
 }
 
+// TODO move node_fn to some .map() method.
 impl<'a> Sequence<'a> {
     fn new(parsers: &Vec<&'a dyn Parser>, node_fn: fn(&Vec<Node>) -> Node) -> Sequence<'a> {
         Sequence {

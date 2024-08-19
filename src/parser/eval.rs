@@ -30,7 +30,7 @@ fn eval(
     node: Node,
     now: chrono::DateTime<chrono::FixedOffset>,
 ) -> Result<State, String> {
-    debug_log(format!("eval input: {:?}", node));
+    debug_log(format!("eval input: {:?} {:?}", state, node));
     let eval_result = match node {
         Node::Duration(delta) => match state {
             State::TimeDelta(prev_delta) => {
@@ -47,7 +47,11 @@ fn eval(
         Node::Durations(nodes) => eval_list(state, nodes, now),
         Node::Expr(nodes) => eval_list(state, nodes, now),
         Node::Skip(_) => Ok(state),
-        Node::Now => Ok(State::DateTime(now)),
+        Node::Now => match state {
+            State::DateTime(_) => Err("cannot add now and datetime".to_string()),
+            State::TimeDelta(delta) => Ok(State::DateTime(now + delta)),
+            State::None => Ok(State::DateTime(now)),
+        },
     };
     debug_log(format!("eval output: {:?}", eval_result));
     eval_result

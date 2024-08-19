@@ -4,11 +4,11 @@ use std::{
     process,
 };
 
+mod log;
+
 mod parser;
 use parser::{eval_to_datetime, parse_expr};
 use std::fmt::Write;
-mod log;
-use log::*;
 
 fn main() {
     let args = parse_cli_args();
@@ -122,10 +122,10 @@ mod tests {
     // TODO add macro assert_ok!
     #[test]
     fn test_eval_with_now() {
-        let input = "1h + 1d + now".to_string();
+        let input = "1s + now".to_string();
         let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
         assert!(result.is_ok(), "expected ok was {:?}", result);
-        assert_eq!(result.unwrap(), "2001-01-02T02:01:01+00:00");
+        assert_eq!(result.unwrap(), "2001-01-01T01:01:02+00:00");
     }
 
     fn now() -> chrono::DateTime<chrono::FixedOffset> {

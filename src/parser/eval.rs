@@ -1,3 +1,5 @@
+use crate::log::debug_log;
+
 use super::Node;
 use chrono::{DateTime, FixedOffset};
 
@@ -5,7 +7,7 @@ pub fn eval_to_datetime(
     node: Node,
     now: chrono::DateTime<chrono::FixedOffset>,
 ) -> Result<DateTime<FixedOffset>, String> {
-    // Pass some dummy default state.
+    debug_log(format!("eval_to_date node {:?}", node));
     match eval(State::None, node, now) {
         Ok(state) => match state {
             State::DateTime(datetime) => Ok(datetime),
@@ -16,6 +18,7 @@ pub fn eval_to_datetime(
     }
 }
 
+#[derive(Debug)]
 enum State {
     TimeDelta(chrono::TimeDelta),
     DateTime(chrono::DateTime<chrono::FixedOffset>),
@@ -27,7 +30,8 @@ fn eval(
     node: Node,
     now: chrono::DateTime<chrono::FixedOffset>,
 ) -> Result<State, String> {
-    match node {
+    debug_log(format!("eval input: {:?}", node));
+    let eval_result = match node {
         Node::Duration(delta) => match state {
             State::TimeDelta(prev_delta) => {
                 Ok(State::TimeDelta(delta.checked_add(&prev_delta).unwrap()))
@@ -44,7 +48,9 @@ fn eval(
         Node::Expr(nodes) => eval_list(state, nodes, now),
         Node::Skip(_) => Ok(state),
         Node::Now => Ok(State::DateTime(now)),
-    }
+    };
+    debug_log(format!("eval output: {:?}", eval_result));
+    eval_result
 }
 
 fn eval_list(

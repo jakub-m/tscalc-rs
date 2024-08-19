@@ -7,6 +7,8 @@ use std::{
 mod parser;
 use parser::{eval_to_datetime, parse_expr};
 use std::fmt::Write;
+mod log;
+use log::*;
 
 fn main() {
     let args = parse_cli_args();
@@ -15,17 +17,11 @@ fn main() {
         process::exit(0);
     }
     let stdin = io::stdin();
+    let now = chrono::Utc::now();
 
     for line in stdin.lock().lines() {
         let line = line.unwrap();
-        match parse_and_eval(
-            &line,
-            if args.output_epoch_seconds {
-                OutputFormat::EPOCH_SECONDS
-            } else {
-                OutputFormat::ISO
-            },
-        ) {
+        match parse_and_eval(&line, args.output_format, now.into()) {
             Ok(output) => println!("{}", output),
             Err(message) => {
                 println!("{}", message);
@@ -36,13 +32,13 @@ fn main() {
 }
 
 struct Args {
-    output_epoch_seconds: bool,
+    output_format: OutputFormat,
     print_help: bool,
 }
 
 fn parse_cli_args() -> Args {
     let mut output = Args {
-        output_epoch_seconds: false,
+        output_format: OutputFormat::ISO,
         print_help: false,
     };
     let args: Vec<String> = env::args().collect();
@@ -59,7 +55,7 @@ fn parse_cli_args() -> Args {
             };
         } else if param == "-s" {
             output = Args {
-                output_epoch_seconds: true,
+                output_format: OutputFormat::EPOCH_SECONDS,
                 ..output
             }
         }
@@ -73,13 +69,17 @@ fn print_help() {
     println!("-h\tPrint this help.");
 }
 
+#[derive(Clone, Copy)]
 enum OutputFormat {
     ISO,
     EPOCH_SECONDS,
 }
 
-fn parse_and_eval(input: &String, output_format: OutputFormat) -> Result<String, String> {
-    let now = chrono::Utc::now();
+fn parse_and_eval(
+    input: &String,
+    output_format: OutputFormat,
+    now: chrono::DateTime<chrono::FixedOffset>,
+) -> Result<String, String> {
     let parse_result = parse_expr(input);
     if let Err(parse_err) = parse_result {
         let mut m = String::from("");
@@ -89,7 +89,7 @@ fn parse_and_eval(input: &String, output_format: OutputFormat) -> Result<String,
         return Err(m);
     }
     let parse_ok = parse_result.unwrap();
-    let eval_result = eval_to_datetime(parse_ok.node, now.into());
+    let eval_result = eval_to_datetime(parse_ok.node, now);
     if let Err(message) = eval_result {
         return Err(message);
     }
@@ -110,12 +110,25 @@ mod tests {
     #[test]
     fn test_eval_garbage_on_right() {
         let input = "1h + 2h + 2000-01-01T00:00:00Z garbage".to_string();
-        let result = parse_and_eval(&input, crate::OutputFormat::ISO);
+        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
         assert!(
             result.is_err(),
             "expected err for input {:?}, got {:?}",
             input,
             result
         );
+    }
+
+    // TODO add macro assert_ok!
+    #[test]
+    fn test_eval_with_now() {
+        let input = "1h + 1d + now".to_string();
+        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
+        assert!(result.is_ok(), "expected ok was {:?}", result);
+        assert_eq!(result.unwrap(), "2001-01-02T02:01:01+00:00");
+    }
+
+    fn now() -> chrono::DateTime<chrono::FixedOffset> {
+        chrono::DateTime::parse_from_rfc3339("2001-01-01T01:01:01Z").unwrap()
     }
 }

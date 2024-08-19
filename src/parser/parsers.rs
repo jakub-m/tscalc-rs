@@ -1,4 +1,5 @@
 use super::core::{InputPointer, Node, ParseErr, ParseOk, Parser};
+use crate::log::debug_log;
 use chrono;
 use regex::{Captures, Regex};
 
@@ -467,11 +468,6 @@ impl Parser for LiteralNode {
             })
         }
     }
-}
-
-// TODO use debug! macro
-fn debug_log(_s: String) {
-    // println!("{}", _s);
 }
 
 mod tests {

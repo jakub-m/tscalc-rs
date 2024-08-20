@@ -1,3 +1,4 @@
+- WHen eval list fails, show position in the input where it failed.
 - Handle functions like `round(<date>, day) + 1h`
 - Handle timestmap as input, same as  of datetime
 - When no input, return "now"

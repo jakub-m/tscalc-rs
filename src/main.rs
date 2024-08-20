@@ -132,3 +132,10 @@ mod tests {
         chrono::DateTime::parse_from_rfc3339("2001-01-01T01:01:01Z").unwrap()
     }
 }
+//            "2000-01-01T00:00:01Z + 1s - 2000-01-01T00:00:00Z + 2001-01-01T00:00:00Z",
+//            Some(Node::DateTime(
+//                chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:02Z").unwrap(),
+//            )),
+
+// "2000-01-01T00:00:01Z - 2000-01-01T00:00:00Z",
+// Some(Node::Duration(chrono::TimeDelta::seconds(1))),

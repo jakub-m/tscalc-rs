@@ -1,4 +1,4 @@
-use super::core::{InputPointer, Node, ParseErr, ParseOk, Parser};
+use super::core::{InputPointer, Node, ParseErr, ParseOk, Parser, SignedDateTime};
 use crate::log::debug_log;
 use chrono;
 use regex::{Captures, Regex};
@@ -79,6 +79,7 @@ fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
                 }
             }
             Node::Skip(_) => (),
+            Node::SignedDateTime(_) => todo!(),
         }
     }
     return filtered_nodes;
@@ -182,6 +183,16 @@ impl Parser for DateTime {
     }
 }
 
+/// Parser that extract a datetime with an optional sign in front of it. Such a parser is useful to
+/// be a part of a list of terms.
+struct SignedDateTimeParser;
+
+impl Parser for SignedDateTimeParser {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        todo!()
+    }
+}
+
 /// Sequence of parsers. All the parsers must match.
 struct Sequence<'a> {
     parsers: Vec<&'a dyn Parser>,
@@ -217,7 +228,7 @@ struct RepeatedOk<'a> {
     nodes: Vec<Node>,
 }
 
-struct ZeroOrMoreDurations;
+struct ZeroOrMoreDurations; // TODO remove this one, not needed anymore.
 
 impl Parser for ZeroOrMoreDurations {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
@@ -471,15 +482,14 @@ impl Parser for LiteralNode {
 }
 
 mod tests {
-    use core::hash;
-    use std::os::unix::fs::chroot;
+    use crate::parser::SignedDateTime;
 
     use super::{
         consume_repeated, consume_sequence, ConsumeRepeated, DateTime, ExprParser, FirstOf,
         InputPointer, Node, Parser, SignedDuration, DAY, HOUR,
     };
     use chrono;
-    use chrono::{Duration, FixedOffset, TimeDelta};
+    use chrono::{Duration, TimeDelta};
 
     #[test]
     fn test_parse_signed_duration() {
@@ -649,6 +659,37 @@ mod tests {
             ])),
         );
     }
+
+    #[test]
+    fn test_subtract_date1() {
+        check_expr_parser(
+            "2000-01-01T00:00:01Z - 2000-01-01T00:00:00Z",
+            Some(Node::Expr(vec![
+                Node::DateTime(
+                    chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:01Z").unwrap(),
+                ),
+                Node::SignedDateTime(SignedDateTime {
+                    sign: -1,
+                    datetime: chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:00Z").unwrap(),
+                }),
+            ])),
+        )
+    }
+
+    //#[test]
+    //fn test_subtract_date2() {
+    //    check_expr_parser(
+    //        "2000-01-01T00:00:01Z + 1s - 2000-01-01T00:00:00Z + 2001-01-01T00:00:00Z",
+    //        Some(Node::Expr(vec![
+    //            Node::DateTime(
+    //                chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:02Z").unwrap(),
+    //            ),
+    //            Node::SignedDateTime(
+    //                chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:02Z").unwrap(),
+    //            ),
+    //        ])),
+    //    )
+    //}
 
     fn check_expr_parser(input: &str, expected: Option<Node>) {
         let parser = ExprParser;

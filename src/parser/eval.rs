@@ -52,6 +52,7 @@ fn eval(
             State::TimeDelta(delta) => Ok(State::DateTime(now + delta)),
             State::None => Ok(State::DateTime(now)),
         },
+        Node::SignedDateTime(_) => todo!(),
     };
     debug_log(format!("eval output: {:?}", eval_result));
     eval_result

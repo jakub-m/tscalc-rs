@@ -45,12 +45,14 @@ impl Parser for ExprParser {
         //});
         let datetime_or_duration = FirstOf::new(vec![&datetime_or_now, &signed_duration]);
         let signed_datetime_or_duration =
-            Sequence::new_as_expr(&vec![&sign, &datetime_or_duration]);
+            Sequence::new_as_expr(&vec![&ws, &sign, &ws, &datetime_or_duration]);
         let repeated_signed_datetimes_or_durations = RepeatedAsExpr(&signed_datetime_or_duration);
         // list of terms that are either added or subtracted
         let list_of_terms = Sequence::new_as_expr(&vec![
+            &ws,
             &datetime_or_duration,
             &repeated_signed_datetimes_or_durations,
+            &ws,
         ]);
         list_of_terms.parse(pointer)
     }
@@ -608,30 +610,20 @@ mod tests {
         );
     }
 
-    fn duration_1s_node() -> Node {
-        Node::Duration(chrono::TimeDelta::seconds(1))
-    }
-
-    fn datetime_node() -> Node {
-        Node::DateTime(chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap())
-    }
-
-    fn plus() -> Node {
-        Node::Plus
+    #[test]
+    fn test_expr_parser_1() {
+        check_expr_parser(
+            "2000-01-01T00:00:00Z",
+            Some(Node::Expr(vec![datetime_node()])),
+        );
     }
 
     #[test]
-    fn test_expr_parser_0() {
-        //let duration_2s_node = Node::Duration(chrono::TimeDelta::seconds(2));
-        //let duration_3s_node = Node::Duration(chrono::TimeDelta::seconds(3));
-        //check_expr_parser(
-        //    "2000-01-01T00:00:00Z",
-        //    Some(Node::Expr(vec![datetime_node.clone()])),
-        //);
-        //check_expr_parser(
-        //    " 2000-01-01T00:00:00Z",
-        //    Some(Node::Expr(vec![datetime_node.clone()])),
-        //);
+    fn test_expr_parser_2() {
+        check_expr_parser(
+            " 2000-01-01T00:00:00Z",
+            Some(Node::Expr(vec![datetime_node()])),
+        );
     }
 
     #[test]
@@ -640,57 +632,63 @@ mod tests {
             "2000-01-01T00:00:00Z+1s",
             Some(Node::Expr(vec![
                 datetime_node(),
-                Node::Expr(vec![plus(), duration_1s_node()]),
+                Node::Expr(vec![Node::Expr(vec![plus(), duration_1s_node()])]),
             ])),
         );
-        //check_expr_parser(
-        //    "2000-01-01T00:00:00Z+1s+2s",
-        //    Some(Node::Expr(vec![
-        //        datetime_node.clone(),
-        //        Node::Durations(vec![duration_1s_node.clone(), duration_2s_node.clone()]),
-        //    ])),
-        //);
-        //check_expr_parser(
-        //    "1s+2000-01-01T00:00:00Z",
-        //    Some(Node::Expr(vec![
-        //        duration_1s_node.clone(),
-        //        datetime_node.clone(),
-        //    ])),
-        //);
-        //check_expr_parser(
-        //    " 1s + 2000-01-01T00:00:00Z ",
-        //    Some(Node::Expr(vec![
-        //        duration_1s_node.clone(),
-        //        datetime_node.clone(),
-        //    ])),
-        //);
-        //check_expr_parser(
-        //    "1s+2s+3s+2000-01-01T00:00:00Z+1s+2s+3s",
-        //    Some(Node::Expr(vec![
-        //        duration_1s_node.clone(),
-        //        Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
-        //        datetime_node.clone(),
-        //        Node::Durations(vec![
-        //            duration_1s_node.clone(),
-        //            duration_2s_node.clone(),
-        //            duration_3s_node.clone(),
-        //        ]),
-        //    ])),
-        //);
-        //check_expr_parser(
-        //    //" 1s + 2s +  3s +  2000-01-01T00:00:00Z +  1s +  2s + 3s ",
-        //    "1s+2s+3s+2000-01-01T00:00:00Z + 1s + 2s + 3s",
-        //    Some(Node::Expr(vec![
-        //        duration_1s_node.clone(),
-        //        Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
-        //        datetime_node.clone(),
-        //        Node::Durations(vec![
-        //            duration_1s_node.clone(),
-        //            duration_2s_node.clone(),
-        //            duration_3s_node.clone(),
-        //        ]),
-        //    ])),
-        //);
+    }
+
+    #[test]
+    fn test_expr_parser_4() {
+        check_expr_parser(
+            "2000-01-01T00:00:00Z+1s+2s",
+            Some(Node::Expr(vec![
+                datetime_node(),
+                Node::Expr(vec![
+                    Node::Expr(vec![plus(), duration_1s_node()]),
+                    Node::Expr(vec![plus(), duration_2s_node()]),
+                ]),
+            ])),
+        );
+    }
+
+    #[test]
+    fn test_expr_parser_5() {
+        check_expr_parser(
+            "1s+2000-01-01T00:00:00Z",
+            Some(Node::Expr(vec![
+                duration_1s_node(),
+                Node::Expr(vec![Node::Expr(vec![plus(), datetime_node()])]),
+            ])),
+        );
+    }
+
+    #[test]
+    fn test_expr_parser_6() {
+        check_expr_parser(
+            " 1s + 2000-01-01T00:00:00Z ",
+            Some(Node::Expr(vec![
+                duration_1s_node(),
+                Node::Expr(vec![Node::Expr(vec![plus(), datetime_node()])]),
+            ])),
+        );
+    }
+
+    #[test]
+    fn test_expr_parser_7() {
+        check_expr_parser(
+            "1s+2s+3s+2000-01-01T00:00:00Z+1s+2s+3s",
+            Some(Node::Expr(vec![
+                duration_1s_node(),
+                Node::Expr(vec![
+                    Node::Expr(vec![plus(), duration_2s_node()]),
+                    Node::Expr(vec![plus(), duration_3s_node()]),
+                    Node::Expr(vec![plus(), datetime_node()]),
+                    Node::Expr(vec![plus(), duration_1s_node()]),
+                    Node::Expr(vec![plus(), duration_2s_node()]),
+                    Node::Expr(vec![plus(), duration_3s_node()]),
+                ]),
+            ])),
+        );
     }
 
     #[test]
@@ -735,5 +733,25 @@ mod tests {
         } else {
             assert!(!result.is_ok(), "expected not ok got {:?}", result);
         }
+    }
+
+    fn duration_1s_node() -> Node {
+        Node::Duration(chrono::TimeDelta::seconds(1))
+    }
+
+    fn duration_2s_node() -> Node {
+        Node::Duration(chrono::TimeDelta::seconds(2))
+    }
+
+    fn duration_3s_node() -> Node {
+        Node::Duration(chrono::TimeDelta::seconds(3))
+    }
+
+    fn datetime_node() -> Node {
+        Node::DateTime(chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap())
+    }
+
+    fn plus() -> Node {
+        Node::Plus
     }
 }

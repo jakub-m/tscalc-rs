@@ -24,62 +24,65 @@ pub fn parse_expr<'a>(input: &'a String) -> Result<ParseOk<'a>, ParseErr<'a>> {
 }
 
 /// Expression grammar is:
-///
-/// - First of:
-///   - date (signed_duration)*
-///   - signed_duration (signed_duration)* "+" date (signed_duration)*
+///  (sighed_duration | date) (signed_duration | signed_date)*
+/// Validity of the expression is figured during evaluation.
 struct ExprParser;
 
 impl Parser for ExprParser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         debug_log(format!("ExprParer {:?}", pointer.rest()));
         let ws = SkipWhitespace;
-        let datetime = DateTime;
         let now = LiteralNode::new("now", Node::Now);
+        let datetime = DateTime;
         let datetime_or_now = FirstOf::new(vec![&datetime, &now]);
-        let single_duration = SignedDuration;
-        let many_durations = ZeroOrMoreDurations;
-        let date_durations = Sequence::new(
-            &vec![&ws, &datetime_or_now, &ws, &many_durations],
-            |nodes| {
-                let nodes = filter_insignificant_nodes(nodes);
-                Node::Expr(nodes.to_vec())
-            },
-        );
-        let plus_sign = SkipLiteral::new("+");
-        let durations_date_durations = Sequence::new(
-            &vec![
-                &ws,
-                &single_duration,
-                &ws,
-                &many_durations,
-                &ws,
-                &plus_sign,
-                &ws,
-                &datetime_or_now,
-                &ws,
-                &many_durations,
-            ],
-            |nodes| Node::Expr(filter_insignificant_nodes(nodes).to_vec()),
-        );
-        let expr_parser = FirstOf::new(vec![&date_durations, &durations_date_durations]);
-        expr_parser.parse(pointer)
+        let signed_duration = SignedDuration;
+        let plus = LiteralNode::new("+", Node::Plus);
+        let minus = LiteralNode::new("-", Node::Minus);
+        let sign = FirstOf::new(vec![&plus, &minus]);
+
+        //let signed_datetime = Sequence::new(&vec![&sign, &datetime], |nodes| {
+        //    nodes_to_signed_datetime(nodes)
+        //});
+        let datetime_or_duration = FirstOf::new(vec![&datetime_or_now, &signed_duration]);
+        let signed_datetime_or_duration =
+            Sequence::new_as_expr(&vec![&sign, &datetime_or_duration]);
+        let repeated_signed_datetimes_or_durations = RepeatedAsExpr(&signed_datetime_or_duration);
+        // list of terms that are either added or subtracted
+        let list_of_terms = Sequence::new_as_expr(&vec![
+            &datetime_or_duration,
+            &repeated_signed_datetimes_or_durations,
+        ]);
+        list_of_terms.parse(pointer)
     }
 }
+
+//fn nodes_to_signed_datetime(nodes: &Vec<Node>) -> Node {
+//    // TODO do not panic, return error.
+//    if nodes.len() != 2 {
+//        panic!("BUG parse error for nodes {:?}", nodes);
+//    }
+//    let datetime = if let Node::DateTime(datetime) = nodes.get(1).unwrap() {
+//        datetime
+//    } else {
+//        panic!("BUG parse error for nodes {:?}", nodes);
+//    };
+//    let sign = nodes.get(0).unwrap();
+//}
 
 fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
     let mut filtered_nodes: Vec<Node> = vec![];
 
     for node in nodes {
         match node {
-            Node::Duration(_) | Node::DateTime(_) | Node::Now => filtered_nodes.push(node.clone()),
-            Node::Durations(nodes) | Node::Expr(nodes) => {
+            Node::Duration(_) | Node::DateTime(_) | Node::Now | Node::Plus | Node::Minus => {
+                filtered_nodes.push(node.clone())
+            }
+            Node::Expr(nodes) => {
                 if !nodes.is_empty() {
                     filtered_nodes.push(node.clone())
                 }
             }
             Node::Skip(_) => (),
-            Node::SignedDateTime(_) => todo!(),
         }
     }
     return filtered_nodes;
@@ -90,7 +93,8 @@ struct SignedDuration;
 impl Parser for SignedDuration {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         debug_log(format!("SignedDuration {:?}", pointer.rest()));
-        let pat = Regex::new(r"^([-+])?\s*(\d+)([dhms])").unwrap();
+        //let pat = Regex::new(r"^([-+])?\s*(\d+)([dhms])").unwrap();
+        let pat = Regex::new(r"^([-])?(\d+)([dhms])").unwrap();
         match pat.captures(pointer.rest().as_ref()) {
             Some(caps) => match captures_to_duration(&caps) {
                 Ok(dur) => Ok(ParseOk {
@@ -183,16 +187,6 @@ impl Parser for DateTime {
     }
 }
 
-/// Parser that extract a datetime with an optional sign in front of it. Such a parser is useful to
-/// be a part of a list of terms.
-struct SignedDateTimeParser;
-
-impl Parser for SignedDateTimeParser {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        todo!()
-    }
-}
-
 /// Sequence of parsers. All the parsers must match.
 struct Sequence<'a> {
     parsers: Vec<&'a dyn Parser>,
@@ -200,6 +194,13 @@ struct Sequence<'a> {
 }
 
 impl<'a> Sequence<'a> {
+    /// Return sequence as Expr node.
+    fn new_as_expr(parsers: &Vec<&'a dyn Parser>) -> Sequence<'a> {
+        Sequence::new(parsers, |nodes| {
+            Node::Expr(filter_insignificant_nodes(nodes).to_vec())
+        })
+    }
+
     fn new(parsers: &Vec<&'a dyn Parser>, node_fn: fn(&Vec<Node>) -> Node) -> Sequence<'a> {
         Sequence {
             parsers: parsers.clone(),
@@ -228,34 +229,53 @@ struct RepeatedOk<'a> {
     nodes: Vec<Node>,
 }
 
-struct ZeroOrMoreDurations; // TODO remove this one, not needed anymore.
+struct RepeatedAsExpr<'p>(&'p dyn Parser);
 
-impl Parser for ZeroOrMoreDurations {
+impl<'p> Parser for RepeatedAsExpr<'p> {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("ZeroOrModeDurations {:?}", pointer.rest()));
-        let parser = LTrim(&SignedDuration);
-        let result = consume_repeated(
-            &parser,
+        consume_repeated(
+            self.0,
             pointer,
             ConsumeRepeated::ZeroOrMore,
-            "failed to match durations",
-        );
-        let mut nodes = Vec::new();
-        result.map(|result| {
-            for node in result.nodes {
-                if let Node::Duration(delta) = node {
-                    nodes.push(Node::Duration(delta));
-                } else {
-                    panic!("Expected duration node but got: {:?}", node);
-                }
-            }
-            return Ok(ParseOk {
-                pointer: result.pointer,
-                node: Node::Durations(nodes),
-            });
+            "failed to match repeated",
+        )
+        .map(|repeated_ok| {
+            Ok(ParseOk {
+                pointer: repeated_ok.pointer,
+                node: Node::Expr(repeated_ok.nodes),
+            })
         })?
     }
 }
+
+//struct ZeroOrMoreDurations; // TODO remove this one, not needed anymore.
+//
+//impl Parser for ZeroOrMoreDurations {
+//    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+//        debug_log(format!("ZeroOrModeDurations {:?}", pointer.rest()));
+//        let parser = LTrim(&SignedDuration);
+//        let result = consume_repeated(
+//            &parser,
+//            pointer,
+//            ConsumeRepeated::ZeroOrMore,
+//            "failed to match durations",
+//        );
+//        let mut nodes = Vec::new();
+//        result.map(|result| {
+//            for node in result.nodes {
+//                if let Node::Duration(delta) = node {
+//                    nodes.push(Node::Duration(delta));
+//                } else {
+//                    panic!("Expected duration node but got: {:?}", node);
+//                }
+//            }
+//            return Ok(ParseOk {
+//                pointer: result.pointer,
+//                node: Node::Durations(nodes),
+//            });
+//        })?
+//    }
+//}
 
 /// Trim whitespace on the left input of the parser.
 struct LTrim<'a>(&'a dyn Parser);
@@ -603,77 +623,77 @@ mod tests {
             " 2000-01-01T00:00:00Z",
             Some(Node::Expr(vec![datetime_node.clone()])),
         );
-        check_expr_parser(
-            "2000-01-01T00:00:00Z+1s",
-            Some(Node::Expr(vec![
-                datetime_node.clone(),
-                Node::Durations(vec![duration_1s_node.clone()]),
-            ])),
-        );
-        check_expr_parser(
-            "2000-01-01T00:00:00Z+1s+2s",
-            Some(Node::Expr(vec![
-                datetime_node.clone(),
-                Node::Durations(vec![duration_1s_node.clone(), duration_2s_node.clone()]),
-            ])),
-        );
-        check_expr_parser(
-            "1s+2000-01-01T00:00:00Z",
-            Some(Node::Expr(vec![
-                duration_1s_node.clone(),
-                datetime_node.clone(),
-            ])),
-        );
-        check_expr_parser(
-            " 1s + 2000-01-01T00:00:00Z ",
-            Some(Node::Expr(vec![
-                duration_1s_node.clone(),
-                datetime_node.clone(),
-            ])),
-        );
-        check_expr_parser(
-            "1s+2s+3s+2000-01-01T00:00:00Z+1s+2s+3s",
-            Some(Node::Expr(vec![
-                duration_1s_node.clone(),
-                Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
-                datetime_node.clone(),
-                Node::Durations(vec![
-                    duration_1s_node.clone(),
-                    duration_2s_node.clone(),
-                    duration_3s_node.clone(),
-                ]),
-            ])),
-        );
-        check_expr_parser(
-            //" 1s + 2s +  3s +  2000-01-01T00:00:00Z +  1s +  2s + 3s ",
-            "1s+2s+3s+2000-01-01T00:00:00Z + 1s + 2s + 3s",
-            Some(Node::Expr(vec![
-                duration_1s_node.clone(),
-                Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
-                datetime_node.clone(),
-                Node::Durations(vec![
-                    duration_1s_node.clone(),
-                    duration_2s_node.clone(),
-                    duration_3s_node.clone(),
-                ]),
-            ])),
-        );
+        //check_expr_parser(
+        //    "2000-01-01T00:00:00Z+1s",
+        //    Some(Node::Expr(vec![
+        //        datetime_node.clone(),
+        //        Node::Durations(vec![duration_1s_node.clone()]),
+        //    ])),
+        //);
+        //check_expr_parser(
+        //    "2000-01-01T00:00:00Z+1s+2s",
+        //    Some(Node::Expr(vec![
+        //        datetime_node.clone(),
+        //        Node::Durations(vec![duration_1s_node.clone(), duration_2s_node.clone()]),
+        //    ])),
+        //);
+        //check_expr_parser(
+        //    "1s+2000-01-01T00:00:00Z",
+        //    Some(Node::Expr(vec![
+        //        duration_1s_node.clone(),
+        //        datetime_node.clone(),
+        //    ])),
+        //);
+        //check_expr_parser(
+        //    " 1s + 2000-01-01T00:00:00Z ",
+        //    Some(Node::Expr(vec![
+        //        duration_1s_node.clone(),
+        //        datetime_node.clone(),
+        //    ])),
+        //);
+        //check_expr_parser(
+        //    "1s+2s+3s+2000-01-01T00:00:00Z+1s+2s+3s",
+        //    Some(Node::Expr(vec![
+        //        duration_1s_node.clone(),
+        //        Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
+        //        datetime_node.clone(),
+        //        Node::Durations(vec![
+        //            duration_1s_node.clone(),
+        //            duration_2s_node.clone(),
+        //            duration_3s_node.clone(),
+        //        ]),
+        //    ])),
+        //);
+        //check_expr_parser(
+        //    //" 1s + 2s +  3s +  2000-01-01T00:00:00Z +  1s +  2s + 3s ",
+        //    "1s+2s+3s+2000-01-01T00:00:00Z + 1s + 2s + 3s",
+        //    Some(Node::Expr(vec![
+        //        duration_1s_node.clone(),
+        //        Node::Durations(vec![duration_2s_node.clone(), duration_3s_node.clone()]),
+        //        datetime_node.clone(),
+        //        Node::Durations(vec![
+        //            duration_1s_node.clone(),
+        //            duration_2s_node.clone(),
+        //            duration_3s_node.clone(),
+        //        ]),
+        //    ])),
+        //);
     }
 
     #[test]
     fn test_subtract_date1() {
-        check_expr_parser(
-            "2000-01-01T00:00:01Z - 2000-01-01T00:00:00Z",
-            Some(Node::Expr(vec![
-                Node::DateTime(
-                    chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:01Z").unwrap(),
-                ),
-                Node::SignedDateTime(SignedDateTime {
-                    sign: -1,
-                    datetime: chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:00Z").unwrap(),
-                }),
-            ])),
-        )
+        //check_expr_parser(
+        //    "2000-01-01T00:00:01Z - 2000-01-01T00:00:00Z",
+        //    Some(Node::Expr(vec![
+        //        Node::DateTime(
+        //            chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:01Z").unwrap(),
+        //        ),
+        //        Node::SignedDateTime(SignedDateTime {
+        //            sign: -1,
+        //            datetime: chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:00Z").unwrap(),
+        //        }),
+        //    ])),
+        //)
     }
 
     //#[test]

@@ -44,7 +44,6 @@ fn eval(
             State::DateTime(_) => Err("tried to add two datetimes".to_string()),
             State::None => Ok(State::DateTime(datetime)),
         },
-        Node::Durations(nodes) => eval_list(state, nodes, now),
         Node::Expr(nodes) => eval_list(state, nodes, now),
         Node::Skip(_) => Ok(state),
         Node::Now => match state {
@@ -52,7 +51,8 @@ fn eval(
             State::TimeDelta(delta) => Ok(State::DateTime(now + delta)),
             State::None => Ok(State::DateTime(now)),
         },
-        Node::SignedDateTime(_) => todo!(),
+        Node::Plus => todo!(),
+        Node::Minus => todo!(),
     };
     debug_log(format!("eval output: {:?}", eval_result));
     eval_result

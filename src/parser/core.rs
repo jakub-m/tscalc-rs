@@ -37,15 +37,14 @@ impl<'a> InputPointer<'a> {
 pub enum Node {
     Duration(chrono::Duration),
     DateTime(chrono::DateTime<chrono::FixedOffset>),
-    SignedDateTime(SignedDateTime),
-    /// The nodes are guaranteed to be variants Node::Duration.
-    Durations(Vec<Node>), // TODO remove, not needed anymore.
-    /// A string (e.g. a literal) that was matched and is defacto skipped.
-    Skip(String),
-    /// A sequence of nodes that form an expression.
+    /// A sequence of nodes that form an expression and can be evaluated.
     Expr(Vec<Node>),
     /// "now" literal that evaluates to current time.
     Now,
+    Plus,
+    Minus,
+    /// A string (e.g. a literal) that was matched and is defacto skipped.
+    Skip(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]

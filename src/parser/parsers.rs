@@ -671,8 +671,14 @@ mod tests {
             Some(Node::Expr(vec![
                 datetime_node(),
                 Node::Expr(vec![
-                    Node::Expr(vec![plus(), duration_1s_node()]),
-                    Node::Expr(vec![plus(), duration_2s_node()]),
+                    Node::OperExpr {
+                        oper: Oper::Plus,
+                        expr: vec![duration_1s_node()],
+                    },
+                    Node::OperExpr {
+                        oper: Oper::Plus,
+                        expr: vec![duration_2s_node()],
+                    },
                 ]),
             ])),
         );
@@ -684,7 +690,10 @@ mod tests {
             "1s+2000-01-01T00:00:00Z",
             Some(Node::Expr(vec![
                 duration_1s_node(),
-                Node::Expr(vec![Node::Expr(vec![plus(), datetime_node()])]),
+                Node::Expr(vec![Node::OperExpr {
+                    oper: Oper::Plus,
+                    expr: vec![datetime_node()],
+                }]),
             ])),
         );
     }
@@ -695,7 +704,10 @@ mod tests {
             " 1s + 2000-01-01T00:00:00Z ",
             Some(Node::Expr(vec![
                 duration_1s_node(),
-                Node::Expr(vec![Node::Expr(vec![plus(), datetime_node()])]),
+                Node::Expr(vec![Node::OperExpr {
+                    oper: Oper::Plus,
+                    expr: vec![datetime_node()],
+                }]),
             ])),
         );
     }
@@ -703,16 +715,34 @@ mod tests {
     #[test]
     fn test_expr_parser_7() {
         check_expr_parser(
-            "1s+2s+3s+2000-01-01T00:00:00Z+1s+2s+3s",
+            "1s+2s+3s-2000-01-01T00:00:00Z-1s+2s+3s",
             Some(Node::Expr(vec![
                 duration_1s_node(),
                 Node::Expr(vec![
-                    Node::Expr(vec![plus(), duration_2s_node()]),
-                    Node::Expr(vec![plus(), duration_3s_node()]),
-                    Node::Expr(vec![plus(), datetime_node()]),
-                    Node::Expr(vec![plus(), duration_1s_node()]),
-                    Node::Expr(vec![plus(), duration_2s_node()]),
-                    Node::Expr(vec![plus(), duration_3s_node()]),
+                    Node::OperExpr {
+                        oper: Oper::Plus,
+                        expr: vec![duration_2s_node()],
+                    },
+                    Node::OperExpr {
+                        oper: Oper::Plus,
+                        expr: vec![duration_3s_node()],
+                    },
+                    Node::OperExpr {
+                        oper: Oper::Minus,
+                        expr: vec![datetime_node()],
+                    },
+                    Node::OperExpr {
+                        oper: Oper::Minus,
+                        expr: vec![duration_1s_node()],
+                    },
+                    Node::OperExpr {
+                        oper: Oper::Plus,
+                        expr: vec![duration_2s_node()],
+                    },
+                    Node::OperExpr {
+                        oper: Oper::Plus,
+                        expr: vec![duration_3s_node()],
+                    },
                 ]),
             ])),
         );

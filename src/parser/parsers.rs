@@ -692,35 +692,30 @@ mod tests {
     }
 
     #[test]
-    fn test_subtract_date1() {
-        //check_expr_parser(
-        //    "2000-01-01T00:00:01Z - 2000-01-01T00:00:00Z",
-        //    Some(Node::Expr(vec![
-        //        Node::DateTime(
-        //            chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:01Z").unwrap(),
-        //        ),
-        //        Node::SignedDateTime(SignedDateTime {
-        //            sign: -1,
-        //            datetime: chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:00Z").unwrap(),
-        //        }),
-        //    ])),
-        //)
+    fn test_subtract_date_1() {
+        check_expr_parser(
+            "2000-01-01T00:00:00Z - 2000-01-01T00:00:00Z",
+            Some(Node::Expr(vec![
+                datetime_node(),
+                Node::Expr(vec![Node::Expr(vec![minus(), datetime_node()])]),
+            ])),
+        )
     }
 
-    //#[test]
-    //fn test_subtract_date2() {
-    //    check_expr_parser(
-    //        "2000-01-01T00:00:01Z + 1s - 2000-01-01T00:00:00Z + 2001-01-01T00:00:00Z",
-    //        Some(Node::Expr(vec![
-    //            Node::DateTime(
-    //                chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:02Z").unwrap(),
-    //            ),
-    //            Node::SignedDateTime(
-    //                chrono::DateTime::parse_from_rfc3339("2001-01-01T00:00:02Z").unwrap(),
-    //            ),
-    //        ])),
-    //    )
-    //}
+    #[test]
+    fn test_subtract_date_2() {
+        check_expr_parser(
+            "2000-01-01T00:00:00Z + 1s - 2000-01-01T00:00:00Z + 2000-01-01T00:00:00Z",
+            Some(Node::Expr(vec![
+                datetime_node(),
+                Node::Expr(vec![
+                    Node::Expr(vec![plus(), duration_1s_node()]),
+                    Node::Expr(vec![minus(), datetime_node()]),
+                    Node::Expr(vec![plus(), datetime_node()]),
+                ]),
+            ])),
+        )
+    }
 
     fn check_expr_parser(input: &str, expected: Option<Node>) {
         let parser = ExprParser;
@@ -753,5 +748,8 @@ mod tests {
 
     fn plus() -> Node {
         Node::Plus
+    }
+    fn minus() -> Node {
+        Node::Minus
     }
 }

@@ -89,22 +89,41 @@ mod tests {
         let result_node = parse_expr(&input).unwrap().node;
         let result = eval_to_datetime(result_node, now());
         assert!(result.is_ok(), "result not ok");
-        assert_eq!(
-            result.unwrap(),
-            chrono::DateTime::parse_from_rfc3339("2000-01-02T02:03:04Z").unwrap()
-        )
+        assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-02T02:03:04Z"))
     }
 
     #[test]
-    fn parse_and_eval_diffs() {
+    fn parse_and_eval_diff_duration() {
         let input = "1d + 2h + 2000-01-01T00:00:00Z - 1d - 2h".to_string();
         let result_node = parse_expr(&input).unwrap().node;
         let result = eval_to_datetime(result_node, now());
         assert!(result.is_ok(), "result not ok");
-        assert_eq!(
-            result.unwrap(),
-            chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap()
-        )
+        assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-01T00:00:00Z"))
+    }
+
+    #[test]
+    fn parse_and_eval_diff_datetimes() {
+        let input =
+            "1999-01-01T01:00:00Z - 1999-01-01T00:00:00Z + 2000-01-01T01:00:00Z".to_string();
+        let result_node = parse_expr(&input).unwrap().node;
+        let result = eval_to_datetime(result_node, now());
+        assert!(result.is_ok(), "result not ok");
+        assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-01T01:00:00Z"))
+    }
+
+    #[test]
+    fn parse_and_eval_diff_datetimes_and_deltas() {
+        let input =
+            "1s + 1999-01-01T01:00:00Z + 1m - 1999-01-01T00:00:00Z -1d + 2000-01-02T01:00:00Z"
+                .to_string();
+        let result_node = parse_expr(&input).unwrap().node;
+        let result = eval_to_datetime(result_node, now());
+        assert!(result.is_ok(), "result not ok");
+        assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-01T01:01:01Z"))
+    }
+
+    fn parse_from_rfc3339(s: &str) -> chrono::DateTime<chrono::FixedOffset> {
+        chrono::DateTime::parse_from_rfc3339(s).unwrap()
     }
 
     fn now() -> chrono::DateTime<chrono::FixedOffset> {

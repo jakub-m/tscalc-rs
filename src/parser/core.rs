@@ -39,6 +39,12 @@ pub enum Node {
     DateTime(chrono::DateTime<chrono::FixedOffset>),
     /// A sequence of nodes that form an expression and can be evaluated.
     Expr(Vec<Node>),
+    OperExpr {
+        /// The operator preceding the expression.
+        oper: Oper,
+        /// Nodes that are part of Expr.
+        expr: Vec<Node>,
+    },
     /// "now" literal that evaluates to current time.
     Now,
     Plus,
@@ -48,9 +54,9 @@ pub enum Node {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SignedDateTime {
-    pub sign: i32,
-    pub datetime: chrono::DateTime<chrono::FixedOffset>,
+pub enum Oper {
+    Plus,
+    Minus,
 }
 
 #[derive(Debug)]

@@ -1,4 +1,4 @@
-use super::core::{InputPointer, Node, ParseErr, ParseOk, Parser, SignedDateTime};
+use super::core::{InputPointer, Node, Oper, ParseErr, ParseOk, Parser};
 use crate::log::debug_log;
 use chrono;
 use regex::{Captures, Regex};
@@ -40,13 +40,13 @@ impl Parser for ExprParser {
         let minus = LiteralNode::new("-", Node::Minus);
         let sign = FirstOf::new(vec![&plus, &minus]);
 
-        //let signed_datetime = Sequence::new(&vec![&sign, &datetime], |nodes| {
-        //    nodes_to_signed_datetime(nodes)
-        //});
         let datetime_or_duration = FirstOf::new(vec![&datetime_or_now, &signed_duration]);
-        let signed_datetime_or_duration =
-            Sequence::new_as_expr(&vec![&ws, &sign, &ws, &datetime_or_duration]);
-        let repeated_signed_datetimes_or_durations = RepeatedAsExpr(&signed_datetime_or_duration);
+        let oper_datetime_or_duration =
+            Sequence::new(&vec![&ws, &sign, &ws, &datetime_or_duration], |nodes| {
+                nodes_to_oper_expr(nodes)
+            });
+
+        let repeated_signed_datetimes_or_durations = RepeatedAsExpr(&oper_datetime_or_duration);
         // list of terms that are either added or subtracted
         let list_of_terms = Sequence::new_as_expr(&vec![
             &ws,
@@ -55,6 +55,28 @@ impl Parser for ExprParser {
             &ws,
         ]);
         list_of_terms.parse(pointer)
+    }
+}
+
+fn nodes_to_oper_expr(nodes: &Vec<Node>) -> Node {
+    let nodes = filter_insignificant_nodes(nodes);
+    if nodes.len() != 2 {
+        panic!(
+            "BUG! There must be exactly two nodes at input of nodes_to_oper_expr, was: {:?}",
+            nodes
+        )
+    }
+    let oper = match nodes.get(0).unwrap() {
+        Node::Plus => Oper::Plus,
+        Node::Minus => Oper::Minus,
+        _ => panic!(
+            "BUG! The first node of nodes_to_oper_expr must be an operator, was: {:?}",
+            nodes
+        ),
+    };
+    Node::OperExpr {
+        oper,
+        expr: vec![nodes.get(1).unwrap().clone()],
     }
 }
 
@@ -73,7 +95,6 @@ impl Parser for ExprParser {
 
 fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
     let mut filtered_nodes: Vec<Node> = vec![];
-
     for node in nodes {
         match node {
             Node::Duration(_) | Node::DateTime(_) | Node::Now | Node::Plus | Node::Minus => {
@@ -81,6 +102,11 @@ fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
             }
             Node::Expr(nodes) => {
                 if !nodes.is_empty() {
+                    filtered_nodes.push(node.clone())
+                }
+            }
+            Node::OperExpr { oper, expr } => {
+                if !expr.is_empty() {
                     filtered_nodes.push(node.clone())
                 }
             }
@@ -504,11 +530,9 @@ impl Parser for LiteralNode {
 }
 
 mod tests {
-    use crate::parser::SignedDateTime;
-
     use super::{
         consume_repeated, consume_sequence, ConsumeRepeated, DateTime, ExprParser, FirstOf,
-        InputPointer, Node, Parser, SignedDuration, DAY, HOUR,
+        InputPointer, Node, Oper, Parser, SignedDuration, DAY, HOUR,
     };
     use chrono;
     use chrono::{Duration, TimeDelta};
@@ -632,7 +656,10 @@ mod tests {
             "2000-01-01T00:00:00Z+1s",
             Some(Node::Expr(vec![
                 datetime_node(),
-                Node::Expr(vec![Node::Expr(vec![plus(), duration_1s_node()])]),
+                Node::Expr(vec![Node::OperExpr {
+                    oper: Oper::Plus,
+                    expr: vec![duration_1s_node()],
+                }]),
             ])),
         );
     }

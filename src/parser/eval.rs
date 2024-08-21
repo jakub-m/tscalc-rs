@@ -53,6 +53,7 @@ fn eval(
         },
         Node::Plus => todo!(),
         Node::Minus => todo!(),
+        Node::OperExpr { oper, expr } => todo!(),
     };
     debug_log(format!("eval output: {:?}", eval_result));
     eval_result

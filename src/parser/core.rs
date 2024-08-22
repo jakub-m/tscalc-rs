@@ -47,8 +47,6 @@ pub enum Node {
     },
     /// "now" literal that evaluates to current time.
     Now,
-    Plus,
-    Minus,
     /// A string (e.g. a literal) that was matched and is defacto skipped.
     Skip(String),
 }

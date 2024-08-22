@@ -93,9 +93,7 @@ fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
     let mut filtered_nodes: Vec<Node> = vec![];
     for node in nodes {
         match node {
-            Node::Duration(_) | Node::DateTime(_) | Node::Now | Node::Plus | Node::Minus => {
-                filtered_nodes.push(node.clone())
-            }
+            Node::Duration(_) | Node::DateTime(_) | Node::Now => filtered_nodes.push(node.clone()),
             Node::Expr(nodes) => {
                 if !nodes.is_empty() {
                     filtered_nodes.push(node.clone())
@@ -497,6 +495,8 @@ impl Parser for LiteralNode {
 }
 
 mod tests {
+    use crate::parser::parsers::{LiteralNode, SkipLiteral};
+
     use super::{
         consume_repeated, consume_sequence, ConsumeRepeated, DateTime, ExprParser, FirstOf,
         InputPointer, Node, Oper, Parser, SignedDuration, DAY, HOUR,
@@ -507,7 +507,6 @@ mod tests {
     #[test]
     fn test_parse_signed_duration() {
         check_parse_duration("-123h", Some(-123 * HOUR));
-        check_parse_duration("+123h", Some(123 * HOUR));
         check_parse_duration("123h", Some(123 * HOUR));
         check_parse_duration("123d", Some(123 * DAY));
         check_parse_duration("123x", None);
@@ -558,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_consume_repeated() {
-        let input = "1s+2s-3s".to_string();
+        let input = "1s2s3s".to_string();
         let result = consume_repeated(
             &SignedDuration,
             InputPointer::from_string(&input),
@@ -570,7 +569,7 @@ mod tests {
         let expected_nodes = vec![
             Node::Duration(TimeDelta::seconds(1)),
             Node::Duration(TimeDelta::seconds(2)),
-            Node::Duration(TimeDelta::seconds(-3)),
+            Node::Duration(TimeDelta::seconds(3)),
         ];
         assert_eq!(result.nodes, expected_nodes);
     }
@@ -589,13 +588,15 @@ mod tests {
     fn test_consume_sequence() {
         let input = "1s+2s+3s".to_string();
         let p = InputPointer::from_string(&input);
-        let parsers: Vec<&dyn Parser> = vec![&SignedDuration, &SignedDuration];
+        let plus = SkipLiteral::new("+");
+        let parsers: Vec<&dyn Parser> = vec![&SignedDuration, &plus, &SignedDuration];
         let result = consume_sequence(&parsers, p);
         assert!(result.is_ok(), "expected ok, got {:?}", result);
         assert_eq!(
             result.unwrap().nodes,
             vec![
                 Node::Duration(Duration::seconds(1)),
+                Node::Skip("+".to_string()),
                 Node::Duration(Duration::seconds(2)),
             ]
         );
@@ -780,12 +781,5 @@ mod tests {
 
     fn datetime_node() -> Node {
         Node::DateTime(chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap())
-    }
-
-    fn plus() -> Node {
-        Node::Plus
-    }
-    fn minus() -> Node {
-        Node::Minus
     }
 }

@@ -51,8 +51,6 @@ fn eval(
             State::TimeDelta(delta) => Ok(State::DateTime(now + delta)),
             State::None => Ok(State::DateTime(now)),
         },
-        Node::Plus => todo!(),
-        Node::Minus => todo!(),
         Node::OperExpr { oper, expr } => todo!(),
     };
     debug_log(format!("eval output: {:?}", eval_result));

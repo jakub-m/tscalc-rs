@@ -36,8 +36,8 @@ impl Parser for ExprParser {
         let datetime = DateTime;
         let datetime_or_now = FirstOf::new(vec![&datetime, &now]);
         let signed_duration = SignedDuration;
-        let plus = LiteralNode::new("+", Node::Plus);
-        let minus = LiteralNode::new("-", Node::Minus);
+        let plus = SkipLiteral::new("+");
+        let minus = SkipLiteral::new("-");
         let sign = FirstOf::new(vec![&plus, &minus]);
 
         let datetime_or_duration = FirstOf::new(vec![&datetime_or_now, &signed_duration]);
@@ -59,39 +59,35 @@ impl Parser for ExprParser {
 }
 
 fn nodes_to_oper_expr(nodes: &Vec<Node>) -> Node {
+    let oper = nodes.iter().find_map(|node| {
+        if let Node::Skip(literal) = node {
+            return match literal.as_str() {
+                "+" => Some(Oper::Plus),
+                "-" => Some(Oper::Minus),
+                _ => None,
+            };
+        }
+        return None;
+    });
+    let oper = oper.expect(
+        format!(
+            "BUG! Expected operator at input to nodes_to_oper_expr, got {:?}",
+            nodes
+        )
+        .as_str(),
+    );
     let nodes = filter_insignificant_nodes(nodes);
-    if nodes.len() != 2 {
+    if nodes.len() != 1 {
         panic!(
-            "BUG! There must be exactly two nodes at input of nodes_to_oper_expr, was: {:?}",
+            "BUG! There must be exactly one node for nodes_to_oper_expr, was: {:?}",
             nodes
         )
     }
-    let oper = match nodes.get(0).unwrap() {
-        Node::Plus => Oper::Plus,
-        Node::Minus => Oper::Minus,
-        _ => panic!(
-            "BUG! The first node of nodes_to_oper_expr must be an operator, was: {:?}",
-            nodes
-        ),
-    };
     Node::OperExpr {
         oper,
-        expr: vec![nodes.get(1).unwrap().clone()],
+        expr: vec![nodes.get(0).unwrap().clone()],
     }
 }
-
-//fn nodes_to_signed_datetime(nodes: &Vec<Node>) -> Node {
-//    // TODO do not panic, return error.
-//    if nodes.len() != 2 {
-//        panic!("BUG parse error for nodes {:?}", nodes);
-//    }
-//    let datetime = if let Node::DateTime(datetime) = nodes.get(1).unwrap() {
-//        datetime
-//    } else {
-//        panic!("BUG parse error for nodes {:?}", nodes);
-//    };
-//    let sign = nodes.get(0).unwrap();
-//}
 
 fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
     let mut filtered_nodes: Vec<Node> = vec![];
@@ -275,35 +271,6 @@ impl<'p> Parser for RepeatedAsExpr<'p> {
         })?
     }
 }
-
-//struct ZeroOrMoreDurations; // TODO remove this one, not needed anymore.
-//
-//impl Parser for ZeroOrMoreDurations {
-//    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-//        debug_log(format!("ZeroOrModeDurations {:?}", pointer.rest()));
-//        let parser = LTrim(&SignedDuration);
-//        let result = consume_repeated(
-//            &parser,
-//            pointer,
-//            ConsumeRepeated::ZeroOrMore,
-//            "failed to match durations",
-//        );
-//        let mut nodes = Vec::new();
-//        result.map(|result| {
-//            for node in result.nodes {
-//                if let Node::Duration(delta) = node {
-//                    nodes.push(Node::Duration(delta));
-//                } else {
-//                    panic!("Expected duration node but got: {:?}", node);
-//                }
-//            }
-//            return Ok(ParseOk {
-//                pointer: result.pointer,
-//                node: Node::Durations(nodes),
-//            });
-//        })?
-//    }
-//}
 
 /// Trim whitespace on the left input of the parser.
 struct LTrim<'a>(&'a dyn Parser);
@@ -754,7 +721,10 @@ mod tests {
             "2000-01-01T00:00:00Z - 2000-01-01T00:00:00Z",
             Some(Node::Expr(vec![
                 datetime_node(),
-                Node::Expr(vec![Node::Expr(vec![minus(), datetime_node()])]),
+                Node::Expr(vec![Node::OperExpr {
+                    oper: Oper::Minus,
+                    expr: vec![datetime_node()],
+                }]),
             ])),
         )
     }
@@ -766,9 +736,18 @@ mod tests {
             Some(Node::Expr(vec![
                 datetime_node(),
                 Node::Expr(vec![
-                    Node::Expr(vec![plus(), duration_1s_node()]),
-                    Node::Expr(vec![minus(), datetime_node()]),
-                    Node::Expr(vec![plus(), datetime_node()]),
+                    Node::OperExpr {
+                        oper: Oper::Plus,
+                        expr: vec![duration_1s_node()],
+                    },
+                    Node::OperExpr {
+                        oper: Oper::Minus,
+                        expr: vec![datetime_node()],
+                    },
+                    Node::OperExpr {
+                        oper: Oper::Plus,
+                        expr: vec![datetime_node()],
+                    },
                 ]),
             ])),
         )

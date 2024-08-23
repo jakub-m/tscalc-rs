@@ -75,6 +75,7 @@ fn eval_expr(
     Ok(state)
 }
 
+/// Apply state, oper, node.
 fn apply_oper_node(
     state: &State,
     oper: &Oper,

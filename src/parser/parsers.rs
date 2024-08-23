@@ -41,19 +41,27 @@ impl Parser for ExprParser {
         let plus = SkipLiteral::new("+");
         let minus = SkipLiteral::new("-");
         let sign = FirstOf::new(vec![&plus, &minus]);
+        let expr = ExprParser;
+        let left_bracket = SkipLiteral::new("(");
+        let right_bracket = SkipLiteral::new(")");
+        let bracket_expr =
+            Sequence::new_as_expr(&vec![&left_bracket, &ws, &expr, &ws, &right_bracket]);
 
-        let datetime_or_duration = FirstOf::new(vec![&datetime_or_now, &signed_duration]);
-        let oper_datetime_or_duration =
-            Sequence::new(&vec![&ws, &sign, &ws, &datetime_or_duration], |nodes| {
-                nodes_to_oper_expr(nodes)
-            });
+        let datetime_or_duration_or_brackets =
+            FirstOf::new(vec![&datetime_or_now, &signed_duration, &bracket_expr]);
+        let oper_datetime_or_duration_or_brackets = Sequence::new(
+            &vec![&ws, &sign, &ws, &datetime_or_duration_or_brackets],
+            |nodes| nodes_to_oper_expr(nodes),
+        );
 
-        let repeated_signed_datetimes_or_durations = RepeatedAsExpr(&oper_datetime_or_duration);
+        let repeated_signed_datetimes_or_durations_or_brackets =
+            RepeatedAsExpr(&oper_datetime_or_duration_or_brackets);
+
         // list of terms that are either added or subtracted
         let list_of_terms = Sequence::new_as_expr(&vec![
             &ws,
-            &datetime_or_duration,
-            &repeated_signed_datetimes_or_durations,
+            &datetime_or_duration_or_brackets,
+            &repeated_signed_datetimes_or_durations_or_brackets,
             &ws,
         ]);
         list_of_terms.parse(pointer)
@@ -495,16 +503,14 @@ impl Parser for LiteralNode {
 }
 
 mod tests {
-    use std::rc::Rc;
-
-    use crate::parser::parsers::SkipLiteral;
-
     use super::{
         consume_repeated, consume_sequence, ConsumeRepeated, DateTime, ExprParser, FirstOf,
         InputPointer, Node, Oper, Parser, SignedDuration, DAY, HOUR,
     };
+    use crate::parser::parsers::SkipLiteral;
     use chrono;
     use chrono::{Duration, TimeDelta};
+    use std::rc::Rc;
 
     #[test]
     fn test_parse_signed_duration() {
@@ -761,7 +767,7 @@ mod tests {
         check_expr_parser(
             "1s - (2s + 3s) - (1s + 2s)",
             Some(Node::Expr(vec![
-                datetime_node(),
+                duration_1s_node(),
                 Node::Expr(vec![
                     Node::OperNode {
                         oper: Oper::Minus,
@@ -775,13 +781,13 @@ mod tests {
                     },
                     Node::OperNode {
                         oper: Oper::Minus,
-                        node: Rc::new(Node::Expr(vec![
+                        node: Rc::new(Node::Expr(vec![Node::Expr(vec![
                             duration_1s_node(),
                             Node::Expr(vec![Node::OperNode {
                                 oper: Oper::Plus,
                                 node: Rc::new(duration_2s_node()),
                             }]),
-                        ])),
+                        ])])),
                     },
                 ]),
             ])),

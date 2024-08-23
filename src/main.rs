@@ -154,6 +154,30 @@ mod tests {
         assert_eq!(result.unwrap(), "2001-01-01T01:01:02+00:00");
     }
 
+    #[test]
+    fn test_eval_brackets_1() {
+        let input = "now - (1s - 1s)".to_string();
+        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
+        assert!(result.is_ok(), "expected ok was {:?}", result);
+        assert_eq!(result.unwrap(), "2001-01-01T01:01:01+00:00");
+    }
+
+    #[test]
+    fn test_eval_brackets_2() {
+        let input = "(1s - (2s - 1s)) + now - (1s - (2s - 1s))".to_string();
+        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
+        assert!(result.is_ok(), "expected ok was {:?}", result);
+        assert_eq!(result.unwrap(), "2001-01-01T01:01:01+00:00");
+    }
+
+    #[test]
+    fn test_eval_brackets_3() {
+        let input = "(now - (now - 1d)) + now - (now - (now - 1d))".to_string();
+        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
+        assert!(result.is_ok(), "expected ok was {:?}", result);
+        assert_eq!(result.unwrap(), "2001-01-01T01:01:01+00:00");
+    }
+
     fn now() -> chrono::DateTime<chrono::FixedOffset> {
         chrono::DateTime::parse_from_rfc3339("2001-01-01T01:01:01Z").unwrap()
     }

@@ -1,6 +1,6 @@
-- WHen eval list fails, show position in the input where it failed.
 - Handle functions like `round(<date>, day) + 1h`
-- Handle timestmap as input, same as  of datetime
+- WHen eval list fails, show position in the input where it failed.
+- Handle timestmap as input, same as of datetime
+- Add exhaustive tests for mixture of dates and datetimesa.
 - When no input, return "now"
-- Handle subtraction of the dates. Beware of botched syntax, exhaustive tests!
 - Handle input after -- instead of stdin

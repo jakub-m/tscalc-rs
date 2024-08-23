@@ -36,10 +36,29 @@ fn eval(
         Node::Expr(nodes) => eval_expr(&state, &nodes, now),
         Node::OperNode { oper, node: expr } => apply_oper_node(state, oper, expr.as_ref(), now),
         Node::Skip(_) => Ok((*state).clone()),
-        Node::Now | Node::Duration(_) | Node::DateTime(_) => {
-            Err(format!("cannot evaluate {:?} with {:?}", node, state))
+        Node::Duration(duration) => {
+            if let State::None = state {
+                Ok(State::TimeDelta(duration.clone()))
+            } else {
+                Err(format!("cannot evaluate {:?} with {:?}", node, state))
+            }
+        }
+        Node::DateTime(datetime) => {
+            if let State::None = state {
+                Ok(State::DateTime(datetime.clone()))
+            } else {
+                Err(format!("cannot evaluate {:?} with {:?}", node, state))
+            }
+        }
+        Node::Now => {
+            if let State::None = state {
+                Ok(State::DateTime(now.clone()))
+            } else {
+                Err(format!("cannot evaluate {:?} with {:?}", node, state))
+            }
         }
     };
+
     debug_log(format!("eval output: {:?}", eval_result));
     eval_result
 }
@@ -117,9 +136,9 @@ mod tests {
     }
 
     #[test]
-    fn parse_and_eval_diff_datetimes() {
+    fn parse_and_eval_diff_datetimes_1() {
         let input =
-            "1999-01-01T01:00:00Z - 1999-01-01T00:00:00Z + 2000-01-01T01:00:00Z".to_string();
+            "1999-01-01T01:00:00Z - 1999-01-01T00:00:00Z + 2000-01-01T00:00:00Z".to_string();
         let result_node = parse_expr(&input).unwrap().node;
         let result = eval_to_datetime(result_node, now());
         assert!(result.is_ok(), "result not ok");
@@ -127,14 +146,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_and_eval_diff_datetimes_and_deltas() {
+    fn parse_and_eval_diff_datetimes_2() {
         let input =
-            "1s + 1999-01-01T01:00:00Z + 1m - 1999-01-01T00:00:00Z -1d + 2000-01-02T01:00:00Z"
+            "1s + 1999-01-01T01:00:00Z - 1m - 1999-01-01T00:00:00Z -2s + 2000-01-01T00:00:00Z"
                 .to_string();
         let result_node = parse_expr(&input).unwrap().node;
         let result = eval_to_datetime(result_node, now());
         assert!(result.is_ok(), "result not ok");
-        assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-01T01:01:01Z"))
+        assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-01T00:58:59Z"))
     }
 
     fn parse_from_rfc3339(s: &str) -> chrono::DateTime<chrono::FixedOffset> {

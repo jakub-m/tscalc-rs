@@ -756,6 +756,38 @@ mod tests {
         )
     }
 
+    #[test]
+    fn test_parse_brackets_1() {
+        check_expr_parser(
+            "1s - (2s + 3s) - (1s + 2s)",
+            Some(Node::Expr(vec![
+                datetime_node(),
+                Node::Expr(vec![
+                    Node::OperNode {
+                        oper: Oper::Minus,
+                        node: Rc::new(Node::Expr(vec![Node::Expr(vec![
+                            duration_2s_node(),
+                            Node::Expr(vec![Node::OperNode {
+                                oper: Oper::Plus,
+                                node: Rc::new(duration_3s_node()),
+                            }]),
+                        ])])),
+                    },
+                    Node::OperNode {
+                        oper: Oper::Minus,
+                        node: Rc::new(Node::Expr(vec![
+                            duration_1s_node(),
+                            Node::Expr(vec![Node::OperNode {
+                                oper: Oper::Plus,
+                                node: Rc::new(duration_2s_node()),
+                            }]),
+                        ])),
+                    },
+                ]),
+            ])),
+        );
+    }
+
     fn check_expr_parser(input: &str, expected: Option<Node>) {
         let parser = ExprParser;
         let input = input.to_string();

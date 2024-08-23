@@ -3,4 +3,3 @@
 - Handle timestmap as input, same as of datetime
 - Add exhaustive tests for mixture of dates and datetimesa.
 - When no input, return "now"
-- Handle input after -- instead of stdin

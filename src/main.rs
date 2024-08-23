@@ -19,36 +19,59 @@ fn main() {
     let stdin = io::stdin();
     let now = chrono::Utc::now();
 
-    for line in stdin.lock().lines() {
-        let line = line.unwrap();
-        match parse_and_eval(&line, args.output_format, now.into()) {
+    if let Some(input) = args.expression {
+        match parse_and_eval(&input, args.output_format, now.into()) {
             Ok(output) => println!("{}", output),
             Err(message) => {
                 println!("{}", message);
                 process::exit(1);
             }
         }
+    } else {
+        for line in stdin.lock().lines() {
+            let line = line.unwrap();
+            match parse_and_eval(&line, args.output_format, now.into()) {
+                Ok(output) => println!("{}", output),
+                Err(message) => {
+                    println!("{}", message);
+                    process::exit(1);
+                }
+            }
+        }
     }
 }
 
+#[derive(Debug)]
 struct Args {
     output_format: OutputFormat,
     print_help: bool,
+    expression: Option<String>,
 }
 
 fn parse_cli_args() -> Args {
     let mut output = Args {
         output_format: OutputFormat::ISO,
         print_help: false,
+        expression: None,
     };
     let args: Vec<String> = env::args().collect();
     let mut i = 0;
+    let mut found_sentinel = false;
     loop {
         if i >= args.len() {
             break;
         }
         let param = args.get(i).unwrap();
-        if param == "-h" {
+        if found_sentinel {
+            output = Args {
+                expression: Some(
+                    output
+                        .expression
+                        .map_or(param.to_owned(), |s| s + " " + param),
+                ),
+                ..output
+            }
+        } else if param == "-h" {
             output = Args {
                 print_help: true,
                 ..output
@@ -58,6 +81,8 @@ fn parse_cli_args() -> Args {
                 output_format: OutputFormat::EPOCH_SECONDS,
                 ..output
             }
+        } else if param == "--" {
+            found_sentinel = true;
         }
         i = i + 1;
     }
@@ -67,9 +92,10 @@ fn parse_cli_args() -> Args {
 fn print_help() {
     println!("-s\tOutput time as epoch seconds.");
     println!("-h\tPrint this help.");
+    println!("--\tAfter this sentinel, concatenate all the arguments into a single expression.");
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum OutputFormat {
     ISO,
     EPOCH_SECONDS,

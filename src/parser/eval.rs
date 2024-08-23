@@ -1,6 +1,6 @@
 use crate::log::debug_log;
 
-use super::Node;
+use super::{Node, Oper};
 use chrono::{DateTime, FixedOffset};
 
 pub fn eval_to_datetime(
@@ -25,58 +25,118 @@ enum State {
     None,
 }
 
+/// Evaluation works by modifying state with node.
 fn eval(
     state: State,
     node: Node,
     now: chrono::DateTime<chrono::FixedOffset>,
 ) -> Result<State, String> {
     debug_log(format!("eval input: {:?} {:?}", state, node));
-    let eval_result = match node {
-        Node::Duration(delta) => match state {
-            State::TimeDelta(prev_delta) => {
-                Ok(State::TimeDelta(delta.checked_add(&prev_delta).unwrap()))
+    let eval_result = match state {
+        State::DateTime(datetime) => match node {
+            Node::Expr(nodes) => Ok(eval_oper_expr(&state, &nodes)?),
+            Node::OperExpr { oper, expr } => {
+                todo!()
             }
-            State::DateTime(datetime) => Ok(State::DateTime(datetime + delta)),
-            State::None => Ok(State::TimeDelta(delta)),
+            Node::Skip(_) => Ok(state),
+            Node::Now | Node::Duration(_) | Node::DateTime(_) => {
+                Err(format!("cannot evaluate {:?} with {:?}", node, state))
+            }
         },
-        Node::DateTime(datetime) => match state {
-            State::TimeDelta(delta) => Ok(State::DateTime(datetime + delta)),
-            State::DateTime(_) => Err("tried to add two datetimes".to_string()),
-            State::None => Ok(State::DateTime(datetime)),
-        },
-        Node::Expr(nodes) => eval_list(state, nodes, now),
-        Node::Skip(_) => Ok(state),
-        Node::Now => match state {
-            State::DateTime(_) => Err("cannot add now and datetime".to_string()),
-            State::TimeDelta(delta) => Ok(State::DateTime(now + delta)),
-            State::None => Ok(State::DateTime(now)),
-        },
-        Node::OperExpr { oper, expr } => todo!(),
+        State::TimeDelta(_) => todo!(),
+        State::None => todo!(),
     };
-    debug_log(format!("eval output: {:?}", eval_result));
-    eval_result
+    todo!();
+    //let eval_result = match node {
+    //    Node::DateTime(datetime) => match state {
+    //        State::TimeDelta(_) => Err("Cannot apply datetime to timedelta".to_string()),
+    //        State::DateTime(_) => Err("Cannot apply datetime to datetime".to_string()),
+    //        State::None => Ok(State::DateTime(datetime)),
+    //    },
+    //    Node::Duration(duration) => match state {
+    //        State::TimeDelta(_) => Err("Cannot apply duration to timedelta".to_string()),
+    //        State::DateTime(_) => Err("Cannot apply duration to datetime".to_string()),
+    //        State::None => Ok(State::TimeDelta(duration)),
+    //    },
+    //    Node::Now => match state {
+    //        State::TimeDelta(_) => Err("Cannot apply now to timedelta".to_string()),
+    //        State::DateTime(_) => Err("Cannot apply now to datetime".to_string()),
+    //        State::None => Ok(State::DateTime(now)),
+    //    },
+    //    Node::Expr(nodes) => eval_expr(state, nodes, now),
+    //    Node::OperExpr { oper, expr } => eval_expr(state, expr, now),
+    //    Node::Skip(_) => Ok(state),
+    //    //Node::Expr(nodes) => eval_list(state, nodes, now),
+    //};
+    //debug_log(format!("eval output: {:?}", eval_result));
+    //eval_result
 }
 
-fn eval_list(
-    state: State,
-    nodes: Vec<Node>,
-    now: chrono::DateTime<chrono::FixedOffset>,
-) -> Result<State, String> {
-    let mut current_state = Some(state);
-    for node in nodes {
-        let result = eval(current_state.take().unwrap(), node, now);
-        if let Ok(result_state) = result {
-            current_state = Some(result_state);
-        } else {
-            return result;
-        }
-    }
-    if let Some(state) = current_state {
-        Ok(state)
-    } else {
-        Err("BUG: eval_list resulted in Option::None state".to_string())
-    }
+/// Apply expression on state assuming that each node in the expression is OperExpr.
+fn eval_oper_expr(state: &State, nodes: &Vec<Node>) -> Result<State, String> {
+    todo!()
 }
+
+//fn eval_oper(state: State, oper: Oper, node: Node) -> Result<State, String> {}
+//
+//fn eval_expr(
+//    state: State,
+//    nodes: Vec<Node>,
+//    now: chrono::DateTime<chrono::FixedOffset>,
+//) -> Result<State, String> {
+//    let mut nodes_iter = nodes.iter();
+//    let node = nodes_iter.next();
+//    if node.is_none() {
+//        return Ok(state);
+//    }
+//    let node = node.unwrap();
+//    let mut state = eval(state, node.clone(), now)?;
+//    for node in nodes_iter {
+//        if let Node::OperExpr {
+//            oper,
+//            expr: sub_expr,
+//        } = node
+//        {
+//            let sub_state = eval(State::None, Node::Expr(sub_expr.clone()), now)?;
+//            if let (State::DateTime(left), Oper::Minus, State::DateTime(right)) =
+//                (&state, oper, &sub_state)
+//            {
+//                state = State::TimeDelta(*left - *right);
+//            } else if let (State::DateTime(left), Oper::Minus, State::TimeDelta(right)) =
+//                (&state, oper, &sub_state)
+//            {
+//                state = State::DateTime(*left - *right);
+//            } else if let (State::DateTime(left), Oper::Plus, State::TimeDelta(right)) =
+//                (&state, oper, &sub_state)
+//            {
+//                state = State::DateTime(*left + *right);
+//            } else if let (State::TimeDelta(left), Oper::Plus, State::DateTime(right)) =
+//                (&state, oper, &sub_state)
+//            {
+//                state = State::DateTime(*right + *left);
+//            } else if let (State::TimeDelta(left), Oper::Minus, State::TimeDelta(right)) =
+//                (&state, oper, &sub_state)
+//            {
+//                state = State::TimeDelta(*left - *right);
+//            } else if let (State::TimeDelta(left), Oper::Plus, State::TimeDelta(right)) =
+//                (&state, oper, &sub_state)
+//            {
+//                state = State::TimeDelta(*left + *right);
+//            } else {
+//                return Err(format!(
+//                    "Cannot evaluate operation {:?} {:?} {:?}",
+//                    state, oper, sub_state
+//                ));
+//            }
+//        } else {
+//            return Err(format!(
+//                "BUG! expected OperExpr got {:?} in {:?}",
+//                node, nodes
+//            ));
+//        }
+//    }
+//    return Ok(state);
+//}
 
 mod tests {
     use super::super::parse_expr;

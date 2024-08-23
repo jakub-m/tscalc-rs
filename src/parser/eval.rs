@@ -35,7 +35,7 @@ fn eval(
     let eval_result = match state {
         State::DateTime(datetime) => match node {
             Node::Expr(nodes) => Ok(eval_oper_expr(&state, &nodes)?),
-            Node::OperExpr { oper, expr } => {
+            Node::OperNode { oper, node: expr } => {
                 todo!()
             }
             Node::Skip(_) => Ok(state),

@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 /// A context passed around between the matchers, pointing where in the input is the matched now.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct InputPointer<'a> {
@@ -39,11 +41,9 @@ pub enum Node {
     DateTime(chrono::DateTime<chrono::FixedOffset>),
     /// A sequence of nodes that form an expression and can be evaluated.
     Expr(Vec<Node>),
-    OperExpr {
-        /// The operator preceding the expression.
+    OperNode {
         oper: Oper,
-        /// Nodes that are part of Expr.
-        expr: Vec<Node>,
+        node: Rc<Node>,
     },
     /// "now" literal that evaluates to current time.
     Now,

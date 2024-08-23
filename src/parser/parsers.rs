@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use super::core::{InputPointer, Node, Oper, ParseErr, ParseOk, Parser};
 use crate::log::debug_log;
 use chrono;
@@ -83,9 +85,9 @@ fn nodes_to_oper_expr(nodes: &Vec<Node>) -> Node {
             nodes
         )
     }
-    Node::OperExpr {
+    Node::OperNode {
         oper,
-        expr: vec![nodes.get(0).unwrap().clone()],
+        node: Rc::new(nodes.get(0).unwrap().clone()),
     }
 }
 
@@ -93,14 +95,12 @@ fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
     let mut filtered_nodes: Vec<Node> = vec![];
     for node in nodes {
         match node {
-            Node::Duration(_) | Node::DateTime(_) | Node::Now => filtered_nodes.push(node.clone()),
+            Node::Duration(_)
+            | Node::DateTime(_)
+            | Node::Now
+            | Node::OperNode { oper: _, node: _ } => filtered_nodes.push(node.clone()),
             Node::Expr(nodes) => {
                 if !nodes.is_empty() {
-                    filtered_nodes.push(node.clone())
-                }
-            }
-            Node::OperExpr { oper, expr } => {
-                if !expr.is_empty() {
                     filtered_nodes.push(node.clone())
                 }
             }
@@ -495,7 +495,9 @@ impl Parser for LiteralNode {
 }
 
 mod tests {
-    use crate::parser::parsers::{LiteralNode, SkipLiteral};
+    use std::rc::Rc;
+
+    use crate::parser::parsers::SkipLiteral;
 
     use super::{
         consume_repeated, consume_sequence, ConsumeRepeated, DateTime, ExprParser, FirstOf,
@@ -624,9 +626,9 @@ mod tests {
             "2000-01-01T00:00:00Z+1s",
             Some(Node::Expr(vec![
                 datetime_node(),
-                Node::Expr(vec![Node::OperExpr {
+                Node::Expr(vec![Node::OperNode {
                     oper: Oper::Plus,
-                    expr: vec![duration_1s_node()],
+                    node: Rc::new(duration_1s_node()),
                 }]),
             ])),
         );
@@ -639,13 +641,13 @@ mod tests {
             Some(Node::Expr(vec![
                 datetime_node(),
                 Node::Expr(vec![
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Plus,
-                        expr: vec![duration_1s_node()],
+                        node: Rc::new(duration_1s_node()),
                     },
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Plus,
-                        expr: vec![duration_2s_node()],
+                        node: Rc::new(duration_2s_node()),
                     },
                 ]),
             ])),
@@ -658,9 +660,9 @@ mod tests {
             "1s+2000-01-01T00:00:00Z",
             Some(Node::Expr(vec![
                 duration_1s_node(),
-                Node::Expr(vec![Node::OperExpr {
+                Node::Expr(vec![Node::OperNode {
                     oper: Oper::Plus,
-                    expr: vec![datetime_node()],
+                    node: Rc::new(datetime_node()),
                 }]),
             ])),
         );
@@ -672,9 +674,9 @@ mod tests {
             " 1s + 2000-01-01T00:00:00Z ",
             Some(Node::Expr(vec![
                 duration_1s_node(),
-                Node::Expr(vec![Node::OperExpr {
+                Node::Expr(vec![Node::OperNode {
                     oper: Oper::Plus,
-                    expr: vec![datetime_node()],
+                    node: Rc::new(datetime_node()),
                 }]),
             ])),
         );
@@ -687,29 +689,29 @@ mod tests {
             Some(Node::Expr(vec![
                 duration_1s_node(),
                 Node::Expr(vec![
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Plus,
-                        expr: vec![duration_2s_node()],
+                        node: Rc::new(duration_2s_node()),
                     },
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Plus,
-                        expr: vec![duration_3s_node()],
+                        node: Rc::new(duration_3s_node()),
                     },
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Minus,
-                        expr: vec![datetime_node()],
+                        node: Rc::new(datetime_node()),
                     },
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Minus,
-                        expr: vec![duration_1s_node()],
+                        node: Rc::new(duration_1s_node()),
                     },
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Plus,
-                        expr: vec![duration_2s_node()],
+                        node: Rc::new(duration_2s_node()),
                     },
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Plus,
-                        expr: vec![duration_3s_node()],
+                        node: Rc::new(duration_3s_node()),
                     },
                 ]),
             ])),
@@ -722,9 +724,9 @@ mod tests {
             "2000-01-01T00:00:00Z - 2000-01-01T00:00:00Z",
             Some(Node::Expr(vec![
                 datetime_node(),
-                Node::Expr(vec![Node::OperExpr {
+                Node::Expr(vec![Node::OperNode {
                     oper: Oper::Minus,
-                    expr: vec![datetime_node()],
+                    node: Rc::new(datetime_node()),
                 }]),
             ])),
         )
@@ -737,17 +739,17 @@ mod tests {
             Some(Node::Expr(vec![
                 datetime_node(),
                 Node::Expr(vec![
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Plus,
-                        expr: vec![duration_1s_node()],
+                        node: Rc::new(duration_1s_node()),
                     },
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Minus,
-                        expr: vec![datetime_node()],
+                        node: Rc::new(datetime_node()),
                     },
-                    Node::OperExpr {
+                    Node::OperNode {
                         oper: Oper::Plus,
-                        expr: vec![datetime_node()],
+                        node: Rc::new(datetime_node()),
                     },
                 ]),
             ])),

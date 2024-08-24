@@ -35,7 +35,10 @@ fn eval(
     let eval_result = match node {
         Node::Expr(nodes) => eval_expr(&state, &nodes, now),
         Node::OperNode { oper, node: expr } => apply_oper_node(state, oper, expr.as_ref(), now),
-        Node::Skip(_) => Ok((*state).clone()),
+        Node::Literal {
+            literal: _,
+            skip: _,
+        } => Ok((*state).clone()),
         Node::Duration(duration) => {
             if let State::None = state {
                 Ok(State::TimeDelta(duration.clone()))

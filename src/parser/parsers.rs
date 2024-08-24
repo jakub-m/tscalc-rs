@@ -39,13 +39,13 @@ impl Parser for ExprParser {
         let datetime = DateTime;
         let datetime_or_now = FirstOf::new(vec![&datetime, &now]);
         let signed_duration = SignedDuration;
-        let sign = SkipLiteral::new_any(&["+", "-"]);
-        let left_bracket = SkipLiteral::new("(");
-        let right_bracket = SkipLiteral::new(")");
+        let sign = Literal::new_any(&["+", "-"]).set_skip();
+        let left_bracket = Literal::new("(").set_skip();
+        let right_bracket = Literal::new(")").set_skip();
         let bracket_expr =
             Sequence::new_as_expr(&vec![&left_bracket, &ws, &expr, &ws, &right_bracket]);
         // The function names are hardcoded in the parser.
-        let func_ary1_literals = SkipLiteral::new_any(&["full_day"]);
+        let func_ary1_literals = Literal::new_any(&["full_day"]);
         let func_ary1 = Sequence::new(
             &vec![&func_ary1_literals, &left_bracket, &expr, &right_bracket],
             |nodes| sequence_to_func_ary1(nodes),
@@ -70,11 +70,12 @@ impl Parser for ExprParser {
 
 /// Convert a parsed sequence to function call. The order and set of the nodes is well-determined by the parser.
 fn sequence_to_func_ary1(nodes: &[Node]) -> Node {
+    let nodes = filter_insignificant_nodes(nodes);
     if nodes.len() != 2 {
         panic!("expected exactly two nodes got {:?}", nodes);
     }
-    let name = if let Node::Skip(func_name) = nodes.get(0).unwrap() {
-        func_name.to_owned()
+    let name = if let Node::Literal { literal, skip: _ } = nodes.get(0).unwrap() {
+        literal.to_owned()
     } else {
         panic!(
             "expected the first node to be literal with func name, got {:?}",
@@ -90,7 +91,7 @@ fn sequence_to_func_ary1(nodes: &[Node]) -> Node {
 
 fn nodes_to_oper_expr(nodes: &Vec<Node>) -> Node {
     let oper = nodes.iter().find_map(|node| {
-        if let Node::Skip(literal) = node {
+        if let Node::Literal { literal, skip: _ } = node {
             return match literal.as_str() {
                 "+" => Some(Oper::Plus),
                 "-" => Some(Oper::Minus),
@@ -119,7 +120,7 @@ fn nodes_to_oper_expr(nodes: &Vec<Node>) -> Node {
     }
 }
 
-fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
+fn filter_insignificant_nodes(nodes: &[Node]) -> Vec<Node> {
     let mut filtered_nodes: Vec<Node> = vec![];
     for node in nodes {
         match node {
@@ -133,7 +134,11 @@ fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
                     filtered_nodes.push(node.clone())
                 }
             }
-            Node::Skip(_) => (),
+            Node::Literal { literal: _, skip } => {
+                if !skip {
+                    filtered_nodes.push(node.clone())
+                }
+            }
         }
     }
     return filtered_nodes;
@@ -448,35 +453,54 @@ fn consume_sequence<'a, 'p>(
 }
 
 /// Match any of the literal strings.
-struct SkipLiteral(Vec<String>);
-// TODO: The literal is not only to skip it, it can be meaningful. Add "skip" flag.
+struct Literal {
+    literals: Vec<String>,
+    skip: bool,
+}
 
-impl SkipLiteral {
-    fn new(literal: &str) -> SkipLiteral {
-        SkipLiteral(vec![literal.to_string()])
+impl Literal {
+    fn new(literal: &str) -> Literal {
+        Literal {
+            literals: vec![literal.to_string()],
+            skip: false,
+        }
     }
 
-    fn new_any(literals: &[&str]) -> SkipLiteral {
+    fn new_any(literals: &[&str]) -> Literal {
         let literals: Vec<String> = literals.iter().map(|s| s.to_string()).collect();
-        SkipLiteral(literals)
+        Literal {
+            literals,
+            skip: false,
+        }
+    }
+
+    fn set_skip(self) -> Literal {
+        Literal { skip: true, ..self }
+    }
+
+    fn skip(&self) -> bool {
+        self.skip
     }
 }
 
-impl Parser for SkipLiteral {
+impl Parser for Literal {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("SkipLiteral {:?}", pointer.rest()));
-        for literal in &self.0 {
+        debug_log(format!("Literal {:?}", pointer.rest()));
+        for literal in &self.literals {
             if pointer.rest().starts_with(literal) {
                 let pointer = pointer.advance(literal.len());
                 return Ok(ParseOk {
                     pointer,
-                    node: Node::Skip(literal.to_owned()),
+                    node: Node::Literal {
+                        literal: literal.to_owned(),
+                        skip: self.skip,
+                    },
                 });
             }
         }
         return Err(ParseErr {
             pointer,
-            message: format!("expected {:?}", self.0),
+            message: format!("expected {:?}", self.literals),
         });
     }
 }
@@ -495,7 +519,10 @@ impl Parser for SkipWhitespace {
         }
         Ok(ParseOk {
             pointer: pointer.advance(offset),
-            node: Node::Skip(" ".to_string()),
+            node: Node::Literal {
+                literal: " ".to_string(),
+                skip: true,
+            },
         })
     }
 }
@@ -536,7 +563,7 @@ mod tests {
         consume_repeated, consume_sequence, ConsumeRepeated, DateTime, ExprParser, FirstOf,
         InputPointer, Node, Oper, Parser, SignedDuration, DAY, HOUR,
     };
-    use crate::parser::parsers::SkipLiteral;
+    use crate::parser::parsers::Literal;
     use chrono;
     use chrono::{Duration, TimeDelta};
     use std::rc::Rc;
@@ -625,7 +652,7 @@ mod tests {
     fn test_consume_sequence() {
         let input = "1s+2s+3s".to_string();
         let p = InputPointer::from_string(&input);
-        let plus = SkipLiteral::new("+");
+        let plus = Literal::new("+");
         let parsers: Vec<&dyn Parser> = vec![&SignedDuration, &plus, &SignedDuration];
         let result = consume_sequence(&parsers, p);
         assert!(result.is_ok(), "expected ok, got {:?}", result);
@@ -633,7 +660,10 @@ mod tests {
             result.unwrap().nodes,
             vec![
                 Node::Duration(Duration::seconds(1)),
-                Node::Skip("+".to_string()),
+                Node::Literal {
+                    literal: "+".to_string(),
+                    skip: false
+                },
                 Node::Duration(Duration::seconds(2)),
             ]
         );
@@ -827,10 +857,10 @@ mod tests {
     fn test_func_call_1() {
         check_expr_parser(
             "full_day(now)",
-            Some(Node::FuncAry1 {
+            Some(Node::Expr(vec![Node::FuncAry1 {
                 name: "full_day".to_string(),
-                arg1: Rc::new(Node::Now),
-            }),
+                arg1: Rc::new(Node::Expr(vec![Node::Now])),
+            }])),
         );
     }
 

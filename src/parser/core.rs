@@ -47,8 +47,11 @@ pub enum Node {
     },
     /// "now" literal that evaluates to current time.
     Now,
-    /// A string (e.g. a literal) that was matched and is defacto skipped.
-    Skip(String),
+    /// A literal string, e.g. whitespace to skip or function name.
+    Literal {
+        literal: String,
+        skip: bool,
+    },
     /// Function with arity of 1
     FuncAry1 {
         /// Name of the function

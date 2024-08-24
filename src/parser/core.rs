@@ -49,6 +49,12 @@ pub enum Node {
     Now,
     /// A string (e.g. a literal) that was matched and is defacto skipped.
     Skip(String),
+    /// Function with arity of 1
+    FuncAry1 {
+        /// Name of the function
+        name: String,
+        arg1: Rc<Node>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]

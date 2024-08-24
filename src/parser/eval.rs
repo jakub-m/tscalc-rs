@@ -57,8 +57,11 @@ fn eval(
                 Err(format!("cannot evaluate {:?} with {:?}", node, state))
             }
         }
+        Node::FuncAry1 { name, arg1 } => {
+            let arg_evaluated = eval(&State::None, node, now)?;
+            eval_func_ary1(name, &arg_evaluated)
+        }
     };
-
     debug_log(format!("eval output: {:?}", eval_result));
     eval_result
 }
@@ -112,6 +115,10 @@ fn apply_oper_node(
             state, oper, sub_state
         ));
     }
+}
+
+fn eval_func_ary1(name: &String, arg1: &State) -> Result<State, String> {
+    todo!()
 }
 
 mod tests {

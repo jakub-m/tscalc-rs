@@ -47,23 +47,15 @@ impl Parser for ExprParser {
         let bracket_expr =
             Sequence::new_as_expr(&vec![&left_bracket, &ws, &expr, &ws, &right_bracket]);
 
-        let datetime_or_duration_or_brackets =
-            FirstOf::new(vec![&datetime_or_now, &signed_duration, &bracket_expr]);
-        let oper_datetime_or_duration_or_brackets = Sequence::new(
-            &vec![&ws, &sign, &ws, &datetime_or_duration_or_brackets],
-            |nodes| nodes_to_oper_expr(nodes),
-        );
-
-        let repeated_signed_datetimes_or_durations_or_brackets =
-            RepeatedAsExpr(&oper_datetime_or_duration_or_brackets);
+        // A "term" is datetime or now or duration or expression in brackets.
+        let term = FirstOf::new(vec![&datetime_or_now, &signed_duration, &bracket_expr]);
+        let oper_term = Sequence::new(&vec![&ws, &sign, &ws, &term], |nodes| {
+            nodes_to_oper_expr(nodes)
+        });
+        let repeated_terms = RepeatedAsExpr(&oper_term);
 
         // list of terms that are either added or subtracted
-        let list_of_terms = Sequence::new_as_expr(&vec![
-            &ws,
-            &datetime_or_duration_or_brackets,
-            &repeated_signed_datetimes_or_durations_or_brackets,
-            &ws,
-        ]);
+        let list_of_terms = Sequence::new_as_expr(&vec![&ws, &term, &repeated_terms, &ws]);
         list_of_terms.parse(pointer)
     }
 }
@@ -106,6 +98,7 @@ fn filter_insignificant_nodes(nodes: &Vec<Node>) -> Vec<Node> {
             Node::Duration(_)
             | Node::DateTime(_)
             | Node::Now
+            | Node::FuncAry1 { name: _, arg1: _ }
             | Node::OperNode { oper: _, node: _ } => filtered_nodes.push(node.clone()),
             Node::Expr(nodes) => {
                 if !nodes.is_empty() {
@@ -791,6 +784,17 @@ mod tests {
                     },
                 ]),
             ])),
+        );
+    }
+
+    #[test]
+    fn test_func_call_1() {
+        check_expr_parser(
+            "full_day(now)",
+            Some(Node::FuncAry1 {
+                name: "full_day".to_string(),
+                arg1: Rc::new(Node::Now),
+            }),
         );
     }
 

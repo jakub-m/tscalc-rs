@@ -1,3 +1,4 @@
+use core::time;
 use std::rc::Rc;
 
 use super::core::{InputPointer, Node, Oper, ParseErr, ParseOk, Parser};
@@ -37,6 +38,9 @@ impl Parser for ExprParser {
         let ws = SkipWhitespace;
         let now = LiteralNode::new("now", Node::Now);
         let datetime = DateTime;
+        // TODO fix timestamp here.
+        // let timestamp = Timestamp;
+        //let datetime_or_now = FirstOf::new(vec![&datetime, &timestamp, &now]);
         let datetime_or_now = FirstOf::new(vec![&datetime, &now]);
         let signed_duration = SignedDuration;
         let sign = Literal::new_any(&["+", "-"]).set_skip();
@@ -214,6 +218,47 @@ fn captures_to_duration(caps: &Captures) -> Result<chrono::Duration, String> {
     Ok(chrono::Duration::seconds(sign * scale * unit))
 }
 
+/// Datetime as epoch-timestamp (seconds).
+struct Timestamp;
+
+impl Parser for Timestamp {
+    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        let pat = Regex::new(r"^(-)?\d+(\.\d+)?").unwrap();
+        let match_ = if let Some(match_) = pat.find(&pointer.rest()) {
+            match_.as_str()
+        } else {
+            return Err(ParseErr {
+                pointer,
+                message: "not a timestamp".to_string(),
+            });
+        };
+        let timestamp = match match_.parse::<f32>() {
+            Ok(parsed) => parsed,
+            Err(_) => {
+                return Err(ParseErr {
+                    pointer,
+                    message: format!("not a timestamp: {:?}", match_),
+                })
+            }
+        };
+
+        let unix_secs = (timestamp as i64);
+        let unix_nsecs = ((timestamp.fract() * 1000_0000_0000.0) as u32);
+
+        if let Some(d) = chrono::DateTime::from_timestamp(unix_secs, unix_nsecs) {
+            return Ok(ParseOk {
+                pointer: pointer.advance(match_.len()),
+                node: Node::DateTime(d.into()),
+            });
+        } else {
+            return Err(ParseErr {
+                pointer,
+                message: "bad datetime".to_string(),
+            });
+        }
+    }
+}
+
 struct DateTime;
 
 impl Parser for DateTime {
@@ -230,10 +275,10 @@ impl Parser for DateTime {
             });
         };
         if let Ok(d) = chrono::DateTime::parse_from_rfc3339(match_) {
-            Ok(ParseOk {
+            return Ok(ParseOk {
                 pointer: pointer.advance(match_.len()),
                 node: Node::DateTime(d),
-            })
+            });
         } else {
             return Err(ParseErr {
                 pointer,
@@ -862,6 +907,11 @@ mod tests {
                 arg1: Rc::new(Node::Expr(vec![Node::Now])),
             }])),
         );
+    }
+
+    #[test]
+    fn test_timestamp_1() {
+        check_expr_parser("946684800.000", Some(Node::Expr(vec![datetime_node()])));
     }
 
     fn check_expr_parser(input: &str, expected: Option<Node>) {

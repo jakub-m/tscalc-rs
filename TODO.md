@@ -3,3 +3,4 @@
 - Handle timestmap as input, same as of datetime
 - Add exhaustive tests for mixture of dates and datetimesa.
 - When no input, return "now"
+- Handle (parse and return) complex durations like 1d2h3m4s. Round to seconds.

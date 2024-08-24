@@ -33,19 +33,23 @@ struct ExprParser;
 impl Parser for ExprParser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         debug_log(format!("ExprParer {:?}", pointer.rest()));
+        let expr = ExprParser;
         let ws = SkipWhitespace;
         let now = LiteralNode::new("now", Node::Now);
         let datetime = DateTime;
         let datetime_or_now = FirstOf::new(vec![&datetime, &now]);
         let signed_duration = SignedDuration;
         let sign = SkipLiteral::new_any(&["+", "-"]);
-        let expr = ExprParser;
         let left_bracket = SkipLiteral::new("(");
         let right_bracket = SkipLiteral::new(")");
         let bracket_expr =
             Sequence::new_as_expr(&vec![&left_bracket, &ws, &expr, &ws, &right_bracket]);
-        let func_ary1 = SkipLiteral::new("XXXXX"); // TODO here
-
+        // The function names are hardcoded in the parser.
+        let func_ary1_literals = SkipLiteral::new_any(&["full_day"]);
+        let func_ary1 = Sequence::new(
+            &vec![&func_ary1_literals, &left_bracket, &expr, &right_bracket],
+            |nodes| sequence_to_func_ary1(nodes),
+        );
         // A "term" is datetime or now or duration or function call or expression in brackets.
         let term = FirstOf::new(vec![
             &datetime_or_now,
@@ -61,6 +65,26 @@ impl Parser for ExprParser {
         // list of terms that are either added or subtracted
         let list_of_terms = Sequence::new_as_expr(&vec![&ws, &term, &repeated_terms, &ws]);
         list_of_terms.parse(pointer)
+    }
+}
+
+/// Convert a parsed sequence to function call. The order and set of the nodes is well-determined by the parser.
+fn sequence_to_func_ary1(nodes: &[Node]) -> Node {
+    if nodes.len() != 2 {
+        panic!("expected exactly two nodes got {:?}", nodes);
+    }
+    let name = if let Node::Skip(func_name) = nodes.get(0).unwrap() {
+        func_name.to_owned()
+    } else {
+        panic!(
+            "expected the first node to be literal with func name, got {:?}",
+            nodes
+        );
+    };
+    let arg1 = nodes.get(1).unwrap().to_owned();
+    Node::FuncAry1 {
+        name,
+        arg1: Rc::new(arg1),
     }
 }
 
@@ -423,7 +447,9 @@ fn consume_sequence<'a, 'p>(
     })
 }
 
+/// Match any of the literal strings.
 struct SkipLiteral(Vec<String>);
+// TODO: The literal is not only to skip it, it can be meaningful. Add "skip" flag.
 
 impl SkipLiteral {
     fn new(literal: &str) -> SkipLiteral {
@@ -797,7 +823,6 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[test]
     fn test_func_call_1() {
         check_expr_parser(

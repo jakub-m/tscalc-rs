@@ -7,6 +7,7 @@ use std::{
 mod log;
 
 mod parser;
+use chrono::SubsecRound;
 use parser::{eval_to_datetime, parse_expr};
 use std::fmt::Write;
 
@@ -17,7 +18,8 @@ fn main() {
         process::exit(0);
     }
     let stdin = io::stdin();
-    let now = chrono::Utc::now();
+    // Intentionally truncate to seconds to make the calculator more practical (although less precise).
+    let now = chrono::Utc::now().trunc_subsecs(0);
 
     if let Some(input) = args.expression {
         match parse_and_eval(&input, args.output_format, now.into()) {

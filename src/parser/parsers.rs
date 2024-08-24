@@ -45,7 +45,7 @@ impl Parser for ExprParser {
         let bracket_expr =
             Sequence::new_as_expr(&vec![&left_bracket, &ws, &expr, &ws, &right_bracket]);
         // The function names are hardcoded in the parser.
-        let func_ary1_literals = Literal::new_any(&["full_day"]);
+        let func_ary1_literals = Literal::new_any(&["full_day", "full_hour"]);
         let func_ary1 = Sequence::new(
             &vec![&func_ary1_literals, &left_bracket, &expr, &right_bracket],
             |nodes| sequence_to_func_ary1(nodes),

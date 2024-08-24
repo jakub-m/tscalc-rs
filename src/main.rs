@@ -90,9 +90,17 @@ fn parse_cli_args() -> Args {
 }
 
 fn print_help() {
-    println!("-s\tOutput time as epoch seconds.");
-    println!("-h\tPrint this help.");
-    println!("--\tAfter this sentinel, concatenate all the arguments into a single expression.");
+    let help = "
+Simple calculator for date-time and durations.
+
+Built-in functions:
+- full_day\treturn full day of the date-time.
+
+-s\tOutput time as epoch seconds.
+-h\tPrint this help.
+--\tAfter this sentinel, concatenate all the arguments into a single expression.
+";
+    println!("{}", help.trim());
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -176,6 +184,14 @@ mod tests {
         let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
         assert!(result.is_ok(), "expected ok was {:?}", result);
         assert_eq!(result.unwrap(), "2001-01-01T01:01:01+00:00");
+    }
+
+    #[test]
+    fn test_eval_func_full_day_1() {
+        let input = "full_day(now)".to_string();
+        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
+        assert!(result.is_ok(), "expected ok was {:?}", result);
+        assert_eq!(result.unwrap(), "2001-01-01T00:00:00+00:00");
     }
 
     fn now() -> chrono::DateTime<chrono::FixedOffset> {

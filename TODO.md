@@ -1,6 +1,5 @@
-- Handle functions like `round(<date>, day) + 1h`
-- WHen eval list fails, show position in the input where it failed.
 - Handle timestmap as input, same as of datetime
+- Handle (parse and return) complex durations like 1d2h3m4s. Round to seconds.
+- WHen eval list fails, show position in the input where it failed.
 - Add exhaustive tests for mixture of dates and datetimesa.
 - When no input, return "now"
-- Handle (parse and return) complex durations like 1d2h3m4s. Round to seconds.

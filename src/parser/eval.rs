@@ -1,6 +1,6 @@
 use crate::log::debug_log;
 
-use super::{Node, Oper};
+use super::{full_day, full_hour, Node, Oper};
 use chrono::{DateTime, FixedOffset};
 
 pub fn eval_to_datetime(
@@ -19,7 +19,7 @@ pub fn eval_to_datetime(
 }
 
 #[derive(Clone, Copy, Debug)]
-enum State {
+pub enum State {
     TimeDelta(chrono::TimeDelta),
     DateTime(chrono::DateTime<chrono::FixedOffset>),
     None,
@@ -61,7 +61,7 @@ fn eval(
             }
         }
         Node::FuncAry1 { name, arg1 } => {
-            let arg_evaluated = eval(&State::None, node, now)?;
+            let arg_evaluated = eval(&State::None, arg1, now)?;
             eval_func_ary1(name, &arg_evaluated)
         }
     };
@@ -121,7 +121,11 @@ fn apply_oper_node(
 }
 
 fn eval_func_ary1(name: &String, arg1: &State) -> Result<State, String> {
-    todo!()
+    match name.as_str() {
+        "full_day" => full_day(arg1),
+        "full_hour" => full_hour(arg1),
+        _ => Err(format!("no such function {:?}", name)),
+    }
 }
 
 mod tests {

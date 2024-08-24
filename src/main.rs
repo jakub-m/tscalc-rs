@@ -95,6 +95,7 @@ Simple calculator for date-time and durations.
 
 Built-in functions:
 - full_day\treturn full day of the date-time.
+- full_hour\treturn full hour of the date-time.
 
 -s\tOutput time as epoch seconds.
 -h\tPrint this help.

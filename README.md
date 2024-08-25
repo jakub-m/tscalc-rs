@@ -5,4 +5,11 @@ A simple date-time calculator.
 
 Features:
 
-- Handle datetime in ISO format at input like `2024-08-25T16:48:25+00:00`
+- Datetime in ISO format at input like `2024-08-25T16:48:25+00:00`.
+- Timestamps like `1724606867.000`.
+- `now` keyword. For sake of simplicity, the "now" time is rounded to seconds.
+- Arithmetic on time deltas, like `now + 1d - 2m - 1s`.
+- Brackets: `now - (1d + 2m)`.
+- Arithmetic on times and sub-expressions: `now + (2000-01-01T01:00:00Z - 2000-01-01T00:00:00Z)`.
+- Built-in functions: `full_day` and `full_hour` `full_day(now)`.
+

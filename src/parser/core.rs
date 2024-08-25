@@ -108,5 +108,10 @@ impl DisplayParseResult for Result<ParseOk<'_>, ParseErr<'_>> {
 }
 
 pub trait Parser {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>>;
+    /// Nesting argument is only for sake of debugging, nothing else.
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>>;
 }

@@ -2,7 +2,7 @@ use super::{
     core::{InputPointer, Node, Oper, ParseErr, ParseOk, Parser},
     DisplayParseResult,
 };
-use crate::log::debug_log;
+use crate::log::debug_nested_log;
 use chrono::{self};
 use regex::{Captures, Regex};
 use std::rc::Rc;
@@ -14,7 +14,7 @@ const DAY: i64 = HOUR * 24;
 
 pub fn parse_expr<'a>(input: &'a String) -> Result<ParseOk<'a>, ParseErr<'a>> {
     let pointer = InputPointer::from_string(input);
-    let result = ExprParser.parse(pointer);
+    let result = ExprParser.parse(pointer, 0);
     result.map(|parse_ok| {
         if parse_ok.pointer.is_end() {
             Ok(parse_ok)
@@ -33,8 +33,12 @@ pub fn parse_expr<'a>(input: &'a String) -> Result<ParseOk<'a>, ParseErr<'a>> {
 struct ExprParser;
 
 impl Parser for ExprParser {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("ExprParer input={}", pointer));
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        debug_nested_log(nesting, format!("ExprParer input={}", pointer));
         let expr = ExprParser;
         let ws0 = Whitespace::new_optional();
         let ws1 = Whitespace::new_must_have();
@@ -71,7 +75,7 @@ impl Parser for ExprParser {
 
         // list of terms that are either added or subtracted
         let list_of_terms = Sequence::new_as_expr(&vec![&ws0, &term, &repeated_terms, &ws0]);
-        list_of_terms.parse(pointer)
+        list_of_terms.parse(pointer, nesting + 1)
     }
 }
 
@@ -154,8 +158,12 @@ fn filter_insignificant_nodes(nodes: &[Node]) -> Vec<Node> {
 struct SignedDuration;
 
 impl Parser for SignedDuration {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("SignedDuration input={}", pointer));
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        debug_nested_log(nesting, format!("SignedDuration input={}", pointer));
         let pat = Regex::new(r"^([-])?(\d+)([dhms])").unwrap();
         match pat.captures(pointer.rest().as_ref()) {
             Some(caps) => match captures_to_duration(&caps) {
@@ -224,7 +232,11 @@ fn captures_to_duration(caps: &Captures) -> Result<chrono::Duration, String> {
 struct Timestamp;
 
 impl Parser for Timestamp {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
         let pat = Regex::new(r"^(-?\d+)(\.(\d+))?").unwrap();
         let (match_len, secs_str, nsecs_str) = if let Some(captures) = pat.captures(&pointer.rest())
         {
@@ -259,8 +271,12 @@ impl Parser for Timestamp {
 struct DateTime;
 
 impl Parser for DateTime {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("DateTime input={}", pointer));
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        debug_nested_log(nesting, format!("DateTime input={}", pointer));
         let pat = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|([+-]\d{2}:\d{2}))")
             .unwrap();
         let match_ = if let Some(match_) = pat.find(&pointer.rest()) {
@@ -308,9 +324,13 @@ impl<'a> Sequence<'a> {
 }
 
 impl<'p> Parser for Sequence<'p> {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("Sequence input={}", pointer));
-        let result = consume_sequence(&self.parsers, pointer);
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        debug_nested_log(nesting, format!("Sequence input={}", pointer));
+        let result = consume_sequence(&self.parsers, pointer, nesting + 1);
         result.map(|result| {
             let result_node = (self.node_fn)(&result.nodes);
             Ok(ParseOk {
@@ -330,11 +350,16 @@ struct RepeatedOk<'a> {
 struct RepeatedAsExpr<'p>(&'p dyn Parser);
 
 impl<'p> Parser for RepeatedAsExpr<'p> {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
         consume_repeated(
             self.0,
             pointer,
             ConsumeRepeated::ZeroOrMore,
+            nesting + 1,
             "failed to match repeated",
         )
         .map(|repeated_ok| {
@@ -355,13 +380,17 @@ fn consume_repeated<'a, 'p>(
     parser: &'p dyn Parser,
     pointer: InputPointer<'a>,
     zero_config: ConsumeRepeated,
+    nesting: usize,
     error_message: &str,
 ) -> Result<RepeatedOk<'a>, ParseErr<'a>> {
     let mut nodes: Vec<Node> = Vec::new();
     let mut current_pointer = Some(pointer);
     loop {
-        let result = parser.parse(current_pointer.take().unwrap());
-        debug_log(format!("consume_repeated result {}", result.to_string()));
+        let result = parser.parse(current_pointer.take().unwrap(), nesting + 1);
+        debug_nested_log(
+            nesting,
+            format!("consume_repeated result {}", result.to_string()),
+        );
         if let Ok(result_ok) = result {
             nodes.push(result_ok.node);
             current_pointer = Some(result_ok.pointer);
@@ -371,12 +400,6 @@ fn consume_repeated<'a, 'p>(
         }
     }
     if nodes.is_empty() {
-        // Not true if LTrim is used.
-        //assert_eq!(
-        //    current_pointer.unwrap(),
-        //    pointer,
-        //    "BUG, nodes are empty but the pointers are different"
-        //);
         return match zero_config {
             ConsumeRepeated::ZeroOrMore => Ok(RepeatedOk {
                 pointer: current_pointer.unwrap(),
@@ -411,9 +434,13 @@ impl<'p> FirstOf<'p> {
 }
 
 impl<'p> Parser for FirstOf<'p> {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("FirstOf input={}", pointer));
-        return consume_first(&self.parsers, pointer);
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        debug_nested_log(nesting, format!("FirstOf input={}", pointer));
+        return consume_first(&self.parsers, pointer, nesting + 1);
     }
 }
 
@@ -421,12 +448,16 @@ impl<'p> Parser for FirstOf<'p> {
 fn consume_first<'a, 'p>(
     parsers: &Vec<&'p dyn Parser>,
     pointer: InputPointer<'a>,
+    nesting: usize,
 ) -> Result<ParseOk<'a>, ParseErr<'a>> {
     let mut furthest_err_pointer = None;
     for i in 0..parsers.len() {
         let parser = parsers.get(i).unwrap();
-        let result = parser.parse(pointer);
-        debug_log(format!("consume_first result {}", result.to_string()));
+        let result = parser.parse(pointer, nesting + 1);
+        debug_nested_log(
+            nesting,
+            format!("consume_first result {}", result.to_string()),
+        );
         match result {
             Ok(parse_ok) => return Ok(parse_ok),
             Err(parse_err) => {
@@ -460,19 +491,23 @@ struct SequenceOk<'a> {
 fn consume_sequence<'a, 'p>(
     parsers: &Vec<&'p dyn Parser>,
     pointer: InputPointer<'a>,
+    nesting: usize,
 ) -> Result<SequenceOk<'a>, ParseErr<'a>> {
-    debug_log(format!("consume_sequence input {}", pointer));
+    debug_nested_log(nesting, format!("consume_sequence input {}", pointer));
     let mut nodes: Vec<Node> = vec![];
     let mut current_pointer = Some(pointer);
     for i in 0..parsers.len() {
         let parser = parsers.get(i).unwrap();
-        let result = parser.parse(current_pointer.take().unwrap());
-        debug_log(format!(
-            "consume_sequence result [{}/{}] {}",
-            i + 1,
-            parsers.len(),
-            result.to_string()
-        ));
+        let result = parser.parse(current_pointer.take().unwrap(), nesting + 1);
+        debug_nested_log(
+            nesting,
+            format!(
+                "consume_sequence result [{}/{}] {}",
+                i + 1,
+                parsers.len(),
+                result.to_string()
+            ),
+        );
         if let Ok(result_ok) = result {
             nodes.push(result_ok.node);
             current_pointer = Some(result_ok.pointer);
@@ -481,10 +516,10 @@ fn consume_sequence<'a, 'p>(
         }
     }
     let pointer = current_pointer.take().unwrap();
-    debug_log(format!(
-        "consume_sequence ok, nodes={:?}, output={}",
-        nodes, pointer,
-    ));
+    debug_nested_log(
+        nesting,
+        format!("consume_sequence ok, nodes={:?}, output={}", nodes, pointer,),
+    );
     Ok(SequenceOk { nodes, pointer })
 }
 
@@ -520,8 +555,15 @@ impl Literal {
 }
 
 impl Parser for Literal {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("Literal input={}", pointer));
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        debug_nested_log(
+            nesting,
+            format!("Literal {:?} input={}", self.literals, pointer),
+        );
         for literal in &self.literals {
             if pointer.rest().starts_with(literal) {
                 let pointer = pointer.advance(literal.len());
@@ -556,8 +598,12 @@ impl Whitespace {
 }
 
 impl Parser for Whitespace {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("Whitespace input={}", pointer));
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        debug_nested_log(nesting, format!("Whitespace input={}", pointer));
         // Set offset to len() at start in case all the remainder of the input is whitespace.
         let mut offset = pointer.rest().len();
         let mut matched = false;
@@ -601,7 +647,11 @@ impl LiteralNode {
 }
 
 impl Parser for LiteralNode {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
+    fn parse<'a>(
+        &self,
+        pointer: InputPointer<'a>,
+        nesting: usize,
+    ) -> Result<ParseOk<'a>, ParseErr<'a>> {
         if pointer.rest().starts_with(&self.literal) {
             Ok(ParseOk {
                 pointer: pointer.advance(self.literal.len()),
@@ -642,7 +692,7 @@ mod tests {
         let parser = SignedDuration;
         let s = String::from(input);
         let p = InputPointer::from_string(&s);
-        let result = parser.parse(p);
+        let result = parser.parse(p, 0);
         if let Some(seconds) = expected {
             assert!(result.is_ok(), "result not ok: {:?}", result);
             assert_eq!(
@@ -668,7 +718,7 @@ mod tests {
         let parser = DateTime;
         let s = String::from(input);
         let p = InputPointer::from_string(&s);
-        let result = parser.parse(p);
+        let result = parser.parse(p, 0);
         if let Some(expected) = expected {
             assert!(result.is_ok(), "result not ok: {:?}", result);
             let actual_node = result.unwrap().node;
@@ -680,12 +730,13 @@ mod tests {
     }
 
     #[test]
-    fn test_consume_repeated() {
+    fn test_consume_repeated_1() {
         let input = "1s2s3s".to_string();
         let result = consume_repeated(
             &SignedDuration,
             InputPointer::from_string(&input),
             ConsumeRepeated::OneOrMore,
+            0,
             "bla",
         );
         assert!(result.is_ok(), "expected ok, was: {:?}", result);
@@ -696,6 +747,27 @@ mod tests {
             Node::Duration(TimeDelta::seconds(3)),
         ];
         assert_eq!(result.nodes, expected_nodes);
+        assert_eq!(result.pointer.rest(), "");
+    }
+
+    #[test]
+    fn test_consume_repeated_2() {
+        let input = "1s2sxx".to_string();
+        let result = consume_repeated(
+            &SignedDuration,
+            InputPointer::from_string(&input),
+            ConsumeRepeated::OneOrMore,
+            0,
+            "bla",
+        );
+        assert!(result.is_ok(), "expected ok, was: {:?}", result);
+        let result = result.unwrap();
+        let expected_nodes = vec![
+            Node::Duration(TimeDelta::seconds(1)),
+            Node::Duration(TimeDelta::seconds(2)),
+        ];
+        assert_eq!(result.nodes, expected_nodes);
+        assert_eq!(result.pointer.rest(), "xx");
     }
 
     #[test]
@@ -703,21 +775,21 @@ mod tests {
         let parser = FirstOf::new(vec![&SignedDuration, &DateTime]);
         let input = String::from("1s + bla");
         let p = InputPointer::from_string(&input);
-        let result = parser.parse(p);
+        let result = parser.parse(p, 0);
         assert!(result.is_ok(), "expected ok, was {:?}", result);
         assert_eq!(result.unwrap().node, Node::Duration(Duration::seconds(1)));
     }
 
     #[test]
-    fn test_consume_sequence() {
+    fn test_consume_sequence_1() {
         let input = "1s+2s+3s".to_string();
         let p = InputPointer::from_string(&input);
         let plus = Literal::new("+");
         let parsers: Vec<&dyn Parser> = vec![&SignedDuration, &plus, &SignedDuration];
-        let result = consume_sequence(&parsers, p);
-        assert!(result.is_ok(), "expected ok, got {:?}", result);
+        let result = consume_sequence(&parsers, p, 0);
+        let result = result.expect("expected ok");
         assert_eq!(
-            result.unwrap().nodes,
+            result.nodes,
             vec![
                 Node::Duration(Duration::seconds(1)),
                 Node::Literal {
@@ -727,6 +799,18 @@ mod tests {
                 Node::Duration(Duration::seconds(2)),
             ]
         );
+        assert_eq!(result.pointer.rest(), "+3s");
+    }
+
+    #[test]
+    fn test_consume_sequence_2() {
+        let input = "1s-2s-3s".to_string();
+        let p = InputPointer::from_string(&input);
+        let plus = Literal::new("+");
+        let parsers: Vec<&dyn Parser> = vec![&SignedDuration, &plus, &SignedDuration];
+        let result = consume_sequence(&parsers, p, 0);
+        let result = result.expect_err("expected err");
+        assert_eq!(result.pointer.rest(), "1s-2s-3s");
     }
 
     #[test]
@@ -947,7 +1031,7 @@ mod tests {
         let parser = ExprParser;
         let input = input.to_string();
         let pointer = InputPointer::from_string(&input);
-        let result = parser.parse(pointer);
+        let result = parser.parse(pointer, 0);
         if let Some(expected) = expected {
             let parse_ok = if let Ok(parse_ok) = result {
                 parse_ok

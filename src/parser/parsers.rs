@@ -243,7 +243,7 @@ impl Parser for Timestamp {
             (
                 captures.get(0).unwrap().len(),
                 captures.get(1).unwrap().as_str(),
-                captures.get(3).unwrap().as_str(),
+                captures.get(3).map_or("0", |v| v.as_str()),
             )
         } else {
             return Err(ParseErr {

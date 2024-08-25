@@ -195,6 +195,11 @@ mod tests {
         check_parse_and_eval("0.0 + (0.0 - 1.0", None);
     }
 
+    #[test]
+    fn test_eval_missing_bracket_2() {
+        check_parse_and_eval("0", Some("1970-01-01T00:00:00+00:00"));
+    }
+
     fn check_parse_and_eval(input: &str, expected: Option<&str>) {
         let result = parse_and_eval(&input.to_string(), crate::OutputFormat::ISO, now());
         let result_str = format!("{:?}", result);

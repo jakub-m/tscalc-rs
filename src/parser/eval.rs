@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn parse_and_eval_diff_datetimes_2() {
         let input =
-            "1s + 1999-01-01T01:00:00Z - 1m - 1999-01-01T00:00:00Z -2s + 2000-01-01T00:00:00Z"
+            "1s + 1999-01-01T01:00:00Z - 1m - 1999-01-01T00:00:00Z + -2s + 2000-01-01T00:00:00Z"
                 .to_string();
         let result_node = parse_expr(&input).unwrap().node;
         let result = eval_to_datetime(result_node, now());

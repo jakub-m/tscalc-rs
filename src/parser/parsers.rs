@@ -33,7 +33,8 @@ impl Parser for ExprParser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         debug_log(format!("ExprParer {:?}", pointer.rest()));
         let expr = ExprParser;
-        let ws = Whitespace;
+        let ws0 = Whitespace::new_optional();
+        let ws1 = Whitespace::new_must_have();
         let now = LiteralNode::new("now", Node::Now);
         let datetime = DateTime;
         // TODO fix timestamp here.
@@ -45,7 +46,7 @@ impl Parser for ExprParser {
         let left_bracket = Literal::new("(").set_skip();
         let right_bracket = Literal::new(")").set_skip();
         let bracket_expr =
-            Sequence::new_as_expr(&vec![&left_bracket, &ws, &expr, &ws, &right_bracket]);
+            Sequence::new_as_expr(&vec![&left_bracket, &ws0, &expr, &ws0, &right_bracket]);
         // The function names are hardcoded in the parser.
         let func_ary1_literals = Literal::new_any(&["full_day", "full_hour"]);
         let func_ary1 = Sequence::new(
@@ -59,13 +60,13 @@ impl Parser for ExprParser {
             &func_ary1,
             &bracket_expr,
         ]);
-        let oper_term = Sequence::new(&vec![&ws, &sign, &ws, &term], |nodes| {
+        let oper_term = Sequence::new(&vec![&ws1, &sign, &ws1, &term], |nodes| {
             nodes_to_oper_expr(nodes)
         });
         let repeated_terms = RepeatedAsExpr(&oper_term);
 
         // list of terms that are either added or subtracted
-        let list_of_terms = Sequence::new_as_expr(&vec![&ws, &term, &repeated_terms, &ws]);
+        let list_of_terms = Sequence::new_as_expr(&vec![&ws0, &term, &repeated_terms, &ws0]);
         list_of_terms.parse(pointer)
     }
 }
@@ -151,7 +152,6 @@ struct SignedDuration;
 impl Parser for SignedDuration {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
         debug_log(format!("SignedDuration {:?}", pointer.rest()));
-        //let pat = Regex::new(r"^([-+])?\s*(\d+)([dhms])").unwrap();
         let pat = Regex::new(r"^([-])?(\d+)([dhms])").unwrap();
         match pat.captures(pointer.rest().as_ref()) {
             Some(caps) => match captures_to_duration(&caps) {
@@ -489,10 +489,13 @@ fn consume_sequence<'a, 'p>(
             return Err(result.unwrap_err());
         }
     }
-    Ok(SequenceOk {
+    let pointer = current_pointer.take().unwrap();
+    debug_log(format!(
+        "consume_sequence ok, nodes={:?}, rest={:?}",
         nodes,
-        pointer: current_pointer.take().unwrap(),
-    })
+        pointer.rest()
+    ));
+    Ok(SequenceOk { nodes, pointer })
 }
 
 /// Match any of the literal strings.
@@ -548,25 +551,47 @@ impl Parser for Literal {
     }
 }
 
-struct Whitespace;
+struct Whitespace {
+    optional: bool,
+}
+
+impl Whitespace {
+    pub fn new_must_have() -> Whitespace {
+        Whitespace { optional: false }
+    }
+
+    pub fn new_optional() -> Whitespace {
+        Whitespace { optional: true }
+    }
+}
 
 impl Parser for Whitespace {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("Whitespace {:?}", pointer.rest()));
+        debug_log(format!("Whitespace rest={:?}", pointer.rest()));
+        // Set offset to len() at start in case all the remainder of the input is whitespace.
         let mut offset = pointer.rest().len();
+        let mut matched = false;
         for (char_pos, c) in pointer.rest().char_indices() {
             if c != ' ' {
                 offset = char_pos;
                 break;
             }
+            matched = true;
         }
-        Ok(ParseOk {
-            pointer: pointer.advance(offset),
-            node: Node::Literal {
-                literal: " ".to_string(),
-                skip: true,
-            },
-        })
+        if self.optional || matched {
+            Ok(ParseOk {
+                pointer: pointer.advance(offset),
+                node: Node::Literal {
+                    literal: " ".to_string(),
+                    skip: true,
+                },
+            })
+        } else {
+            Err(ParseErr {
+                pointer,
+                message: "whitespace not matched".to_string(),
+            })
+        }
     }
 }
 
@@ -608,6 +633,7 @@ mod tests {
     };
     use crate::parser::parsers::Literal;
     use chrono;
+    use chrono::format::parse;
     use chrono::{Duration, TimeDelta};
     use std::rc::Rc;
 
@@ -729,9 +755,13 @@ mod tests {
     }
 
     #[test]
-    fn test_expr_parser_3() {
+    fn test_expr_parser_3a() {
+        check_expr_parser("2000-01-01T00:00:00Z+1s", None);
+    }
+    #[test]
+    fn test_expr_parser_3b() {
         check_expr_parser(
-            "2000-01-01T00:00:00Z+1s",
+            "2000-01-01T00:00:00Z + 1s",
             Some(Node::Expr(vec![
                 datetime_node(),
                 Node::Expr(vec![Node::OperNode {
@@ -745,7 +775,7 @@ mod tests {
     #[test]
     fn test_expr_parser_4() {
         check_expr_parser(
-            "2000-01-01T00:00:00Z+1s+2s",
+            "2000-01-01T00:00:00Z + 1s + 2s",
             Some(Node::Expr(vec![
                 datetime_node(),
                 Node::Expr(vec![
@@ -763,9 +793,14 @@ mod tests {
     }
 
     #[test]
-    fn test_expr_parser_5() {
+    fn test_expr_parser_5a() {
+        check_expr_parser("1s+2000-01-01T00:00:00Z", None);
+    }
+
+    #[test]
+    fn test_expr_parser_5b() {
         check_expr_parser(
-            "1s+2000-01-01T00:00:00Z",
+            "1s + 2000-01-01T00:00:00Z",
             Some(Node::Expr(vec![
                 duration_1s_node(),
                 Node::Expr(vec![Node::OperNode {
@@ -793,7 +828,7 @@ mod tests {
     #[test]
     fn test_expr_parser_7() {
         check_expr_parser(
-            "1s+2s+3s-2000-01-01T00:00:00Z-1s+2s+3s",
+            "1s + 2s + 3s - 2000-01-01T00:00:00Z - 1s + 2s + 3s",
             Some(Node::Expr(vec![
                 duration_1s_node(),
                 Node::Expr(vec![
@@ -919,10 +954,24 @@ mod tests {
         let pointer = InputPointer::from_string(&input);
         let result = parser.parse(pointer);
         if let Some(expected) = expected {
-            assert!(result.is_ok(), "expected ok got {:?}", result);
-            assert_eq!(result.unwrap().node, expected, "input: {}", input)
+            let parse_ok = if let Ok(parse_ok) = result {
+                parse_ok
+            } else {
+                panic!("parser failed: {:?}", result)
+            };
+
+            assert!(
+                parse_ok.pointer.is_end(),
+                "expected parser to parse to the end, rest={:?}",
+                parse_ok.pointer.rest()
+            );
+            assert_eq!(parse_ok.node, expected, "input: {}", input)
         } else {
-            assert!(!result.is_ok(), "expected not ok got {:?}", result);
+            assert!(
+                !(pointer.is_end() && result.is_ok()),
+                "expected not a full match or not ok result={:?}",
+                result
+            );
         }
     }
 

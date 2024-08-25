@@ -622,6 +622,7 @@ impl Parser for LiteralNode {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::{
         consume_repeated, consume_sequence, ConsumeRepeated, DateTime, ExprParser, FirstOf,
@@ -941,6 +942,11 @@ mod tests {
     #[test]
     fn test_timestamp_1() {
         check_expr_parser("946684800.000", Some(Node::Expr(vec![datetime_node()])));
+    }
+
+    #[test]
+    fn test_parse_missing_bracket_1() {
+        check_expr_parser("0.0 + (0.0 - 1.0", None);
     }
 
     fn check_expr_parser(input: &str, expected: Option<Node>) {

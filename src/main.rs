@@ -141,68 +141,65 @@ fn parse_and_eval(
     });
 }
 
+#[cfg(test)]
 mod tests {
     use crate::parse_and_eval;
 
     #[test]
     fn test_eval_garbage_on_right() {
-        let input = "1h + 2h + 2000-01-01T00:00:00Z garbage".to_string();
-        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
-        assert!(
-            result.is_err(),
-            "expected err for input {:?}, got {:?}",
-            input,
-            result
-        );
+        check_parse_and_eval("1h + 2h + 2000-01-01T00:00:00Z garbage", None);
     }
 
-    // TODO add macro assert_ok!
     #[test]
     fn test_eval_with_now() {
-        let input = "1s + now".to_string();
-        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
-        assert!(result.is_ok(), "expected ok was {:?}", result);
-        assert_eq!(result.unwrap(), "2001-01-01T01:01:02+00:00");
+        check_parse_and_eval("1s + now", Some("2001-01-01T01:01:02+00:00"));
     }
 
     #[test]
     fn test_eval_brackets_1() {
-        let input = "now - (1s - 1s)".to_string();
-        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
-        assert!(result.is_ok(), "expected ok was {:?}", result);
-        assert_eq!(result.unwrap(), "2001-01-01T01:01:01+00:00");
+        check_parse_and_eval("now - (1s - 1s)", Some("2001-01-01T01:01:01+00:00"));
     }
 
     #[test]
     fn test_eval_brackets_2() {
-        let input = "(1s - (2s - 1s)) + now - (1s - (2s - 1s))".to_string();
-        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
-        assert!(result.is_ok(), "expected ok was {:?}", result);
-        assert_eq!(result.unwrap(), "2001-01-01T01:01:01+00:00");
+        check_parse_and_eval(
+            "(1s - (2s - 1s)) + now - (1s - (2s - 1s))",
+            Some("2001-01-01T01:01:01+00:00"),
+        );
     }
 
     #[test]
     fn test_eval_brackets_3() {
-        let input = "(now - (now - 1d)) + now - (now - (now - 1d))".to_string();
-        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
-        assert!(result.is_ok(), "expected ok was {:?}", result);
-        assert_eq!(result.unwrap(), "2001-01-01T01:01:01+00:00");
+        check_parse_and_eval(
+            "(now - (now - 1d)) + now - (now - (now - 1d))",
+            Some("2001-01-01T01:01:01+00:00"),
+        );
     }
 
     #[test]
     fn test_eval_func_full_day_1() {
-        let input = "full_day(now)".to_string();
-        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
-        assert!(result.is_ok(), "expected ok was {:?}", result);
-        assert_eq!(result.unwrap(), "2001-01-01T00:00:00+00:00");
+        check_parse_and_eval("full_day(now)", Some("2001-01-01T00:00:00+00:00"));
     }
 
     #[test]
     fn test_eval_timestamp_1() {
-        let input = "1234567890.000".to_string();
-        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
-        assert!(result.is_ok(), "expected ok was {:?}", result);
-        assert_eq!(result.unwrap(), "2009-02-13T23:31:30+00:00");
+        check_parse_and_eval("1234567890.000", Some("2009-02-13T23:31:30+00:00"));
+    }
+
+    #[test]
+    fn test_eval_missing_bracket_1() {
+        check_parse_and_eval("0.0 + (0.0 - 1.0", None);
+    }
+
+    fn check_parse_and_eval(input: &str, expected: Option<&str>) {
+        let result = parse_and_eval(&input.to_string(), crate::OutputFormat::ISO, now());
+        let result_str = format!("{:?}", result);
+        if let Some(expected) = expected {
+            let actual = result.expect(&format!("expected ok result, got: {}", result_str));
+            assert_eq!(actual, expected);
+        } else {
+            result.expect_err("expected err result");
+        }
     }
 
     fn now() -> chrono::DateTime<chrono::FixedOffset> {

@@ -128,6 +128,7 @@ fn eval_func_ary1(name: &String, arg1: &State) -> Result<State, String> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::super::parse_expr;
     use super::eval_to_datetime;

@@ -508,11 +508,17 @@ fn consume_sequence<'a, 'p>(
                 result.to_string()
             ),
         );
-        if let Ok(result_ok) = result {
-            nodes.push(result_ok.node);
-            current_pointer = Some(result_ok.pointer);
-        } else {
-            return Err(result.unwrap_err());
+        match result {
+            Ok(parse_ok) => {
+                nodes.push(parse_ok.node);
+                current_pointer = Some(parse_ok.pointer);
+            }
+            Err(parse_err) => {
+                return Err(ParseErr {
+                    pointer, // Pass the original pointer so when the sequence fails, pointer does not move.
+                    message: parse_err.message,
+                });
+            }
         }
     }
     let pointer = current_pointer.take().unwrap();

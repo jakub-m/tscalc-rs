@@ -237,6 +237,7 @@ impl Parser for Timestamp {
         pointer: InputPointer<'a>,
         nesting: usize,
     ) -> Result<ParseOk<'a>, ParseErr<'a>> {
+        debug_nested_log(nesting, format!("Timestamp input={}", pointer));
         let pat = Regex::new(r"^(-?\d+)(\.(\d+))?").unwrap();
         let (match_len, secs_str, nsecs_str) = if let Some(captures) = pat.captures(&pointer.rest())
         {
@@ -252,18 +253,17 @@ impl Parser for Timestamp {
             });
         };
         let unix_secs = secs_str.parse::<i64>().unwrap();
-        let unix_nsecs = nsecs_str.parse::<u32>().unwrap() * 1_000_000_000;
+        let unix_nsecs = nsecs_str.parse::<u32>().unwrap() * 1_000_000_000; // TODO bug here
 
-        if let Some(d) = chrono::DateTime::from_timestamp(unix_secs, unix_nsecs) {
-            return Ok(ParseOk {
+        match chrono::DateTime::from_timestamp(unix_secs, unix_nsecs) {
+            Some(d) => Ok(ParseOk {
                 pointer: pointer.advance(match_len),
                 node: Node::DateTime(d.into()),
-            });
-        } else {
-            return Err(ParseErr {
+            }),
+            None => Err(ParseErr {
                 pointer,
-                message: "bad datetime".to_string(),
-            });
+                message: format!("bad datetime for {:?} {:?}", unix_secs, unix_nsecs),
+            }),
         }
     }
 }

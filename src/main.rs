@@ -191,13 +191,23 @@ mod tests {
     }
 
     #[test]
-    fn test_eval_missing_bracket_1() {
-        check_parse_and_eval("0.0 + (0.0 - 1.0", None);
+    fn test_eval_timestamp_3() {
+        check_parse_and_eval("0", Some("1970-01-01T00:00:00+00:00"));
     }
 
     #[test]
-    fn test_eval_missing_bracket_2() {
-        check_parse_and_eval("0", Some("1970-01-01T00:00:00+00:00"));
+    fn test_eval_timestamp_4() {
+        check_parse_and_eval("0.0", Some("1970-01-01T00:00:00+00:00"));
+    }
+
+    #[test]
+    fn test_eval_timestamp_5() {
+        check_parse_and_eval("0.1", Some("1970-01-01T00:00:00+00:00"));
+    }
+
+    #[test]
+    fn test_eval_missing_bracket_1() {
+        check_parse_and_eval("0.0 + (0.0 - 1.0", None);
     }
 
     fn check_parse_and_eval(input: &str, expected: Option<&str>) {

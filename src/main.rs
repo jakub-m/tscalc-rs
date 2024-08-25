@@ -185,6 +185,10 @@ mod tests {
     fn test_eval_timestamp_1() {
         check_parse_and_eval("1234567890.000", Some("2009-02-13T23:31:30+00:00"));
     }
+    #[test]
+    fn test_eval_timestamp_2() {
+        check_parse_and_eval("0.0 + (0.0 - 1.0)", Some("1969-12-31T23:59:59+00:00"));
+    }
 
     #[test]
     fn test_eval_missing_bracket_1() {

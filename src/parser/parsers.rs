@@ -1,6 +1,9 @@
-use super::core::{InputPointer, Node, Oper, ParseErr, ParseOk, Parser};
+use super::{
+    core::{InputPointer, Node, Oper, ParseErr, ParseOk, Parser},
+    DisplayParseResult,
+};
 use crate::log::debug_log;
-use chrono;
+use chrono::{self};
 use regex::{Captures, Regex};
 use std::rc::Rc;
 
@@ -31,7 +34,7 @@ struct ExprParser;
 
 impl Parser for ExprParser {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("ExprParer {:?}", pointer.rest()));
+        debug_log(format!("ExprParer input={}", pointer));
         let expr = ExprParser;
         let ws0 = Whitespace::new_optional();
         let ws1 = Whitespace::new_must_have();
@@ -152,7 +155,7 @@ struct SignedDuration;
 
 impl Parser for SignedDuration {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("SignedDuration {:?}", pointer.rest()));
+        debug_log(format!("SignedDuration input={}", pointer));
         let pat = Regex::new(r"^([-])?(\d+)([dhms])").unwrap();
         match pat.captures(pointer.rest().as_ref()) {
             Some(caps) => match captures_to_duration(&caps) {
@@ -257,7 +260,7 @@ struct DateTime;
 
 impl Parser for DateTime {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("DateTime {:?}", pointer.rest()));
+        debug_log(format!("DateTime input={}", pointer));
         let pat = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|([+-]\d{2}:\d{2}))")
             .unwrap();
         let match_ = if let Some(match_) = pat.find(&pointer.rest()) {
@@ -306,7 +309,7 @@ impl<'a> Sequence<'a> {
 
 impl<'p> Parser for Sequence<'p> {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("Sequence {:?}", pointer.rest()));
+        debug_log(format!("Sequence input={}", pointer));
         let result = consume_sequence(&self.parsers, pointer);
         result.map(|result| {
             let result_node = (self.node_fn)(&result.nodes);
@@ -343,20 +346,6 @@ impl<'p> Parser for RepeatedAsExpr<'p> {
     }
 }
 
-/// Trim whitespace on the left input of the parser.
-struct LTrim<'a>(&'a dyn Parser);
-
-impl<'p> Parser for LTrim<'p> {
-    fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("LTrim {:?}", pointer.rest()));
-        let current_pointer = match pointer.rest().find(|c: char| !c.is_whitespace()) {
-            Some(offset) => pointer.advance(offset),
-            None => pointer,
-        };
-        self.0.parse(current_pointer)
-    }
-}
-
 enum ConsumeRepeated {
     ZeroOrMore,
     OneOrMore,
@@ -372,7 +361,7 @@ fn consume_repeated<'a, 'p>(
     let mut current_pointer = Some(pointer);
     loop {
         let result = parser.parse(current_pointer.take().unwrap());
-        debug_log(format!("consume_repeated result {:?}", result));
+        debug_log(format!("consume_repeated result {}", result.to_string()));
         if let Ok(result_ok) = result {
             nodes.push(result_ok.node);
             current_pointer = Some(result_ok.pointer);
@@ -423,7 +412,7 @@ impl<'p> FirstOf<'p> {
 
 impl<'p> Parser for FirstOf<'p> {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("FirstOf {:?}", pointer.rest()));
+        debug_log(format!("FirstOf input={}", pointer));
         return consume_first(&self.parsers, pointer);
     }
 }
@@ -437,7 +426,7 @@ fn consume_first<'a, 'p>(
     for i in 0..parsers.len() {
         let parser = parsers.get(i).unwrap();
         let result = parser.parse(pointer);
-        debug_log(format!("consume_first result {:?}", result));
+        debug_log(format!("consume_first result {}", result.to_string()));
         match result {
             Ok(parse_ok) => return Ok(parse_ok),
             Err(parse_err) => {
@@ -472,12 +461,18 @@ fn consume_sequence<'a, 'p>(
     parsers: &Vec<&'p dyn Parser>,
     pointer: InputPointer<'a>,
 ) -> Result<SequenceOk<'a>, ParseErr<'a>> {
+    debug_log(format!("consume_sequence input {}", pointer));
     let mut nodes: Vec<Node> = vec![];
     let mut current_pointer = Some(pointer);
     for i in 0..parsers.len() {
         let parser = parsers.get(i).unwrap();
         let result = parser.parse(current_pointer.take().unwrap());
-        debug_log(format!("consume_sequence result {:?}", result));
+        debug_log(format!(
+            "consume_sequence result [{}/{}] {}",
+            i + 1,
+            parsers.len(),
+            result.to_string()
+        ));
         if let Ok(result_ok) = result {
             nodes.push(result_ok.node);
             current_pointer = Some(result_ok.pointer);
@@ -487,9 +482,8 @@ fn consume_sequence<'a, 'p>(
     }
     let pointer = current_pointer.take().unwrap();
     debug_log(format!(
-        "consume_sequence ok, nodes={:?}, rest={:?}",
-        nodes,
-        pointer.rest()
+        "consume_sequence ok, nodes={:?}, output={}",
+        nodes, pointer,
     ));
     Ok(SequenceOk { nodes, pointer })
 }
@@ -527,7 +521,7 @@ impl Literal {
 
 impl Parser for Literal {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("Literal {:?}", pointer.rest()));
+        debug_log(format!("Literal input={}", pointer));
         for literal in &self.literals {
             if pointer.rest().starts_with(literal) {
                 let pointer = pointer.advance(literal.len());
@@ -563,7 +557,7 @@ impl Whitespace {
 
 impl Parser for Whitespace {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        debug_log(format!("Whitespace rest={:?}", pointer.rest()));
+        debug_log(format!("Whitespace input={}", pointer));
         // Set offset to len() at start in case all the remainder of the input is whitespace.
         let mut offset = pointer.rest().len();
         let mut matched = false;
@@ -963,8 +957,8 @@ mod tests {
 
             assert!(
                 parse_ok.pointer.is_end(),
-                "expected parser to parse to the end, rest={:?}",
-                parse_ok.pointer.rest()
+                "expected parser to parse to the end, rest={}",
+                parse_ok.pointer
             );
             assert_eq!(parse_ok.node, expected, "input: {}", input)
         } else {

@@ -1,3 +1,4 @@
+use std::fmt;
 use std::rc::Rc;
 
 /// A context passed around between the matchers, pointing where in the input is the matched now.
@@ -32,6 +33,21 @@ impl<'a> InputPointer<'a> {
             input: self.input,
             pos: self.pos + n,
         };
+    }
+}
+
+impl<'a> fmt::Display for InputPointer<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        //let rest = self.rest();
+        //let len_to_take = self
+        //    .rest()
+        //    .char_indices()
+        //    .take_while(|(i, _)| *i < 64)
+        //    .map(|(i, _)| i)
+        //    .max()
+        //    .unwrap_or(rest.len());
+        //write!(f, "{}", &rest[..len_to_take])
+        write!(f, "'{}'", &self.rest())
     }
 }
 
@@ -76,6 +92,19 @@ pub struct ParseOk<'a> {
 pub struct ParseErr<'a> {
     pub pointer: InputPointer<'a>,
     pub message: String,
+}
+
+pub trait DisplayParseResult {
+    fn to_string(&self) -> String;
+}
+
+impl DisplayParseResult for Result<ParseOk<'_>, ParseErr<'_>> {
+    fn to_string(&self) -> String {
+        match self {
+            Ok(parse_ok) => format!("ParseOk({:?}, {})", parse_ok.node, parse_ok.pointer),
+            Err(parse_err) => format!("ParseErr({}, {})", parse_err.message, parse_err.pointer),
+        }
+    }
 }
 
 pub trait Parser {

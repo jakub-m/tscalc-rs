@@ -37,10 +37,8 @@ impl Parser for ExprParser {
         let ws1 = Whitespace::new_must_have();
         let now = LiteralNode::new("now", Node::Now);
         let datetime = DateTime;
-        // TODO fix timestamp here.
-        // let timestamp = Timestamp;
+        let timestamp = Timestamp;
         //let datetime_or_now = FirstOf::new(vec![&datetime, &timestamp, &now]);
-        let datetime_or_now = FirstOf::new(vec![&datetime, &now]);
         let signed_duration = SignedDuration;
         let sign = Literal::new_any(&["+", "-"]).set_skip();
         let left_bracket = Literal::new("(").set_skip();
@@ -55,8 +53,11 @@ impl Parser for ExprParser {
         );
         // A "term" is datetime or now or duration or function call or expression in brackets.
         let term = FirstOf::new(vec![
-            &datetime_or_now,
+            //&datetime_or_now,
+            &datetime,
+            &now,
             &signed_duration,
+            &timestamp, // timestamp is after signed duration, otherwise 1s would be matched as "1" being timestamp and "s" possibly and causing error.
             &func_ary1,
             &bracket_expr,
         ]);
@@ -221,31 +222,26 @@ struct Timestamp;
 
 impl Parser for Timestamp {
     fn parse<'a>(&self, pointer: InputPointer<'a>) -> Result<ParseOk<'a>, ParseErr<'a>> {
-        let pat = Regex::new(r"^(-)?\d+(\.\d+)?").unwrap();
-        let match_ = if let Some(match_) = pat.find(&pointer.rest()) {
-            match_.as_str()
+        let pat = Regex::new(r"^(-?\d+)(\.(\d+))?").unwrap();
+        let (match_len, secs_str, nsecs_str) = if let Some(captures) = pat.captures(&pointer.rest())
+        {
+            (
+                captures.get(0).unwrap().len(),
+                captures.get(1).unwrap().as_str(),
+                captures.get(3).unwrap().as_str(),
+            )
         } else {
             return Err(ParseErr {
                 pointer,
                 message: "not a timestamp".to_string(),
             });
         };
-        let timestamp = match match_.parse::<f32>() {
-            Ok(parsed) => parsed,
-            Err(_) => {
-                return Err(ParseErr {
-                    pointer,
-                    message: format!("not a timestamp: {:?}", match_),
-                })
-            }
-        };
-
-        let unix_secs = (timestamp as i64);
-        let unix_nsecs = ((timestamp.fract() * 1000_0000_0000.0) as u32);
+        let unix_secs = secs_str.parse::<i64>().unwrap();
+        let unix_nsecs = nsecs_str.parse::<u32>().unwrap() * 1_000_000_000;
 
         if let Some(d) = chrono::DateTime::from_timestamp(unix_secs, unix_nsecs) {
             return Ok(ParseOk {
-                pointer: pointer.advance(match_.len()),
+                pointer: pointer.advance(match_len),
                 node: Node::DateTime(d.into()),
             });
         } else {
@@ -943,7 +939,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_timestamp_1() {
         check_expr_parser("946684800.000", Some(Node::Expr(vec![datetime_node()])));
     }

@@ -197,6 +197,14 @@ mod tests {
         assert_eq!(result.unwrap(), "2001-01-01T00:00:00+00:00");
     }
 
+    #[test]
+    fn test_eval_timestamp_1() {
+        let input = "1234567890.000".to_string();
+        let result = parse_and_eval(&input, crate::OutputFormat::ISO, now());
+        assert!(result.is_ok(), "expected ok was {:?}", result);
+        assert_eq!(result.unwrap(), "2009-02-13T23:31:30+00:00");
+    }
+
     fn now() -> chrono::DateTime<chrono::FixedOffset> {
         chrono::DateTime::parse_from_rfc3339("2001-01-01T01:01:01Z").unwrap()
     }

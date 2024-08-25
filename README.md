@@ -13,3 +13,14 @@ Features:
 - Arithmetic on times and sub-expressions: `now + (2000-01-01T01:00:00Z - 2000-01-01T00:00:00Z)`.
 - Built-in functions: `full_day` and `full_hour` `full_day(now)`.
 
+Usage:
+
+```bash
+% ./tscalc-rs -- 'full_day(now) + (2000-01-01T00:00:00Z - 1234567890.000) + 1d - 2h - 3s'
+2015-07-12T22:28:27+00:00
+```
+
+It is a rewrite of [a similar toy tool in Go][ref_go].
+
+[ref_go]:https://github.com/jakub-m/toolbox/tree/main/tscalc
+

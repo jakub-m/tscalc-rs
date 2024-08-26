@@ -202,7 +202,12 @@ mod tests {
 
     #[test]
     fn test_eval_timestamp_5() {
-        check_parse_and_eval("0.1", Some("1970-01-01T00:00:00+00:00"));
+        check_parse_and_eval("0.1", Some("1970-01-01T00:00:00.100+00:00"));
+    }
+
+    #[test]
+    fn test_eval_timestamp_6() {
+        check_parse_and_eval("0.12345", Some("1970-01-01T00:00:00.123450+00:00"));
     }
 
     #[test]

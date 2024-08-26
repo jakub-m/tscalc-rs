@@ -2,7 +2,7 @@ use super::{
     core::{InputPointer, Node, Oper, ParseErr, ParseOk, Parser},
     DisplayParseResult,
 };
-use crate::log::debug_nested_log;
+use crate::log::{debug_log, debug_nested_log};
 use chrono::{self};
 use regex::{Captures, Regex};
 use std::rc::Rc;
@@ -253,7 +253,12 @@ impl Parser for Timestamp {
             });
         };
         let unix_secs = secs_str.parse::<i64>().unwrap();
-        let unix_nsecs = nsecs_str.parse::<u32>().unwrap() * 1_000_000_000; // TODO bug here
+        let nsecs_str = format!("{:0<9}", nsecs_str);
+        let unix_nsecs = nsecs_str.parse::<u32>().unwrap();
+        debug_nested_log(
+            nesting,
+            format!("Timestamp parsed secs={} nsecs={}", unix_secs, unix_nsecs),
+        );
 
         match chrono::DateTime::from_timestamp(unix_secs, unix_nsecs) {
             Some(d) => Ok(ParseOk {

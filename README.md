@@ -11,7 +11,7 @@ Features:
 - Arithmetic on time deltas, like `now + 1d - 2m - 1s`.
 - Brackets: `now - (1d + 2m)`.
 - Arithmetic on times and sub-expressions: `now + (2000-01-01T01:00:00Z - 2000-01-01T00:00:00Z)`.
-- Built-in functions: `full_day` and `full_hour` `full_day(now)`.
+- Built-in functions: `full_day` and `full_hour`, like `full_day(now)`.
 
 Usage:
 

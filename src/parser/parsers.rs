@@ -1,16 +1,11 @@
 use super::{
     core::{InputPointer, Node, Oper, ParseErr, ParseOk, Parser},
-    DisplayParseResult,
+    match_duration, DisplayParseResult, ShortFormat,
 };
-use crate::log::{debug_log, debug_nested_log};
-use chrono::{self};
+use crate::log::debug_nested_log;
+use chrono::{self, TimeDelta};
 use regex::{Captures, Regex};
 use std::rc::Rc;
-
-const SECOND: i64 = 1;
-const MINUTE: i64 = SECOND * 60;
-const HOUR: i64 = MINUTE * 60;
-const DAY: i64 = HOUR * 24;
 
 pub fn parse_expr<'a>(input: &'a String) -> Result<ParseOk<'a>, ParseErr<'a>> {
     let pointer = InputPointer::from_string(input);
@@ -164,68 +159,22 @@ impl Parser for SignedDuration {
         nesting: usize,
     ) -> Result<ParseOk<'a>, ParseErr<'a>> {
         debug_nested_log(nesting, format!("SignedDuration input={}", pointer));
-        let pat = Regex::new(r"^([-])?(\d+)([dhms])").unwrap();
-        match pat.captures(pointer.rest().as_ref()) {
-            Some(caps) => match captures_to_duration(&caps) {
-                Ok(dur) => Ok(ParseOk {
-                    pointer: pointer.advance(caps.get(0).unwrap().len()),
-                    node: Node::Duration(dur),
-                }),
-                Err(s) => Err(ParseErr {
-                    pointer,
-                    message: String::from(s),
-                }),
-            },
+
+        match match_duration(pointer.rest()) {
+            Some(matched) => {
+                let duration = TimeDelta::from_short_format(matched)
+                    .expect("failed to parse previously matched timedelta");
+                Ok(ParseOk {
+                    pointer: pointer.advance(matched.len()),
+                    node: Node::Duration(duration),
+                })
+            }
             None => Err(ParseErr {
                 pointer,
                 message: String::from("did not match any duration"),
             }),
         }
     }
-}
-
-fn captures_to_duration(caps: &Captures) -> Result<chrono::Duration, String> {
-    let sign: i64 = if let Some(sign) = caps.get(1) {
-        let sign = sign.as_str();
-        if sign == "+" {
-            1
-        } else if sign == "-" {
-            -1
-        } else {
-            return Err("unknown sign".to_string());
-        }
-    } else {
-        1 // If neither + nor - then assume +.
-    };
-
-    let scale: i64 = if let Some(scale) = caps.get(2) {
-        if let Ok(scale) = scale.as_str().parse::<u32>() {
-            i64::from(scale)
-        } else {
-            return Err("bad scale".to_string());
-        }
-    } else {
-        return Err("unknown scale".to_string());
-    };
-
-    let unit: i64 = if let Some(unit) = caps.get(3) {
-        let unit = match unit.as_str() {
-            "s" => Ok(SECOND),
-            "m" => Ok(MINUTE),
-            "h" => Ok(HOUR),
-            "d" => Ok(DAY),
-            other => Err(format!("bad unit {}", other)),
-        };
-        if let Ok(unit) = unit {
-            unit
-        } else {
-            return Err(unit.unwrap_err());
-        }
-    } else {
-        return Err("unknown unit".to_string());
-    };
-
-    Ok(chrono::Duration::seconds(sign * scale * unit))
 }
 
 /// Datetime as epoch-timestamp (seconds).
@@ -681,34 +630,35 @@ impl Parser for LiteralNode {
 mod tests {
     use super::{
         consume_repeated, consume_sequence, ConsumeRepeated, DateTime, ExprParser, FirstOf,
-        InputPointer, Node, Oper, Parser, SignedDuration, DAY, HOUR,
+        InputPointer, Node, Oper, Parser, SignedDuration,
     };
     use crate::parser::parsers::Literal;
+    use crate::parser::{DAY_NS, HOUR_NS, SECOND_NS};
     use chrono;
-    use chrono::format::parse;
     use chrono::{Duration, TimeDelta};
     use std::rc::Rc;
 
     #[test]
     fn test_parse_signed_duration() {
-        check_parse_duration("-123h", Some(-123 * HOUR));
-        check_parse_duration("123h", Some(123 * HOUR));
-        check_parse_duration("123d", Some(123 * DAY));
+        check_parse_duration("-123h", Some(-123 * HOUR_NS));
+        check_parse_duration("123h", Some(123 * HOUR_NS));
+        check_parse_duration("123d", Some(123 * DAY_NS));
         check_parse_duration("123x", None);
         check_parse_duration("x123d", None);
         check_parse_duration("123", None);
+        check_parse_duration("-1d2s3ns", Some(-(DAY_NS + 2 * SECOND_NS + 3)));
     }
 
-    fn check_parse_duration(input: &str, expected: Option<i64>) {
+    fn check_parse_duration(input: &str, expected_ns: Option<i64>) {
         let parser = SignedDuration;
         let s = String::from(input);
         let p = InputPointer::from_string(&s);
         let result = parser.parse(p, 0);
-        if let Some(seconds) = expected {
+        if let Some(ns) = expected_ns {
             assert!(result.is_ok(), "result not ok: {:?}", result);
             assert_eq!(
                 result.unwrap().node,
-                Node::Duration(Duration::seconds(seconds))
+                Node::Duration(Duration::nanoseconds(ns))
             );
         } else {
             assert!(result.is_err(), "result not err: {:?}", result);

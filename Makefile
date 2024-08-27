@@ -1,7 +1,4 @@
-default: run
-run:
-	echo "1h + 2h + 2000-01-01T00:00:00Z" | cargo run
-	# echo "1h + 2h + now" | cargo run
+default: build
 build:
 	cargo build
 test:

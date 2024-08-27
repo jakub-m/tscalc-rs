@@ -140,7 +140,7 @@ fn parse_and_eval(
         },
         parser::EvaluationResult::TimeDelta(delta) => match output_format {
             OutputFormat::ISO => delta.as_short_format(),
-            OutputFormat::EPOCH_SECONDS => todo!(),
+            OutputFormat::EPOCH_SECONDS => todo!("display delta as seconds"),
         },
     });
 }
@@ -217,6 +217,14 @@ mod tests {
     #[test]
     fn test_eval_missing_bracket_1() {
         check_parse_and_eval("0.0 + (0.0 - 1.0", None);
+    }
+
+    #[test]
+    fn test_eval_duration_6() {
+        check_parse_and_eval(
+            "2000-01-01T00:00:00Z + 1m2s3ms",
+            Some("2000-01-01T00:01:02.003+00:00"),
+        );
     }
 
     fn check_parse_and_eval(input: &str, expected: Option<&str>) {

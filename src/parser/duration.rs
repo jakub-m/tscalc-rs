@@ -1,23 +1,37 @@
 use chrono::TimeDelta;
 
-const NS: i64 = 1;
-const US: i64 = 1000 * NS;
-const MS: i64 = 1000 * US;
-const S: i64 = 1000 * MS;
-const M: i64 = 60 * S;
-const H: i64 = 60 * M;
-const D: i64 = 24 * H;
+pub const NS: i64 = 1;
+pub const US_NS: i64 = 1000 * NS;
+pub const MS_NS: i64 = 1000 * US_NS;
+pub const SECOND_NS: i64 = 1000 * MS_NS;
+pub const MINUTE_NS: i64 = 60 * SECOND_NS;
+pub const HOUR_NS: i64 = 60 * MINUTE_NS;
+pub const DAY_NS: i64 = 24 * HOUR_NS;
+
+const duration_regex: &str = r"^(?<neg>-)?((?<days>\d+)d)?((?<hours>\d+)h)?((?<minutes>\d+)m)?((?<secs>\d+)s)?((?<msecs>\d+)ms)?((?<usecs>\d+)us)?((?<nsecs>\d+)ns)?";
 
 pub trait ShortFormat {
     fn from_short_format(s: &str) -> Result<TimeDelta, String>;
     fn as_short_format(&self) -> String;
 }
 
+pub fn match_duration(s: &str) -> Option<&str> {
+    let re = regex::Regex::new(duration_regex).unwrap();
+    let m = re.find(s)?;
+    if m.as_str().is_empty() {
+        None
+    } else {
+        Some(m.as_str())
+    }
+}
+
 impl ShortFormat for TimeDelta {
     fn from_short_format(s: &str) -> Result<TimeDelta, String> {
-        let pat =
-            regex::Regex::new(r"^(?<neg>-)?((?<days>\d+)d)?((?<hours>\d+)h)?((?<minutes>\d+)m)?((?<secs>\d+)s)?((?<msecs>\d+)ms)?((?<usecs>\d+)us)?((?<nsecs>\d+)ns)?$").unwrap();
+        let pat = regex::Regex::new(duration_regex).unwrap();
         let caps = if let Some(caps) = pat.captures(s) {
+            if caps.get(0).unwrap().len() != s.len() {
+                return Err(format!("did not match entire input {:?}", s));
+            }
             caps
         } else {
             return Err(format!("could not match {:?}", s));
@@ -34,12 +48,12 @@ impl ShortFormat for TimeDelta {
                 .expect("failed to parse int");
             total_nanos = total_nanos + (value * multiplier);
         };
-        consume_group("days", D);
-        consume_group("hours", H);
-        consume_group("minutes", M);
-        consume_group("secs", S);
-        consume_group("msecs", MS);
-        consume_group("usecs", US);
+        consume_group("days", DAY_NS);
+        consume_group("hours", HOUR_NS);
+        consume_group("minutes", MINUTE_NS);
+        consume_group("secs", SECOND_NS);
+        consume_group("msecs", MS_NS);
+        consume_group("usecs", US_NS);
         consume_group("nsecs", NS);
         if caps.name("neg").is_some() {
             total_nanos = total_nanos * -1;
@@ -66,17 +80,17 @@ impl ShortFormat for TimeDelta {
                 s += format!("{}{}", val, symbol).as_str();
             }
         };
-        let days = consume(D);
+        let days = consume(DAY_NS);
         display(days, "d");
-        let hours = consume(H);
+        let hours = consume(HOUR_NS);
         display(hours, "h");
-        let minutes = consume(M);
+        let minutes = consume(MINUTE_NS);
         display(minutes, "m");
-        let seconds = consume(S);
+        let seconds = consume(SECOND_NS);
         display(seconds, "s");
-        let millis = consume(MS);
+        let millis = consume(MS_NS);
         display(millis, "ms");
-        let micros = consume(US);
+        let micros = consume(US_NS);
         display(micros, "us");
         let nanos = consume(NS);
         display(nanos, "ns");
@@ -97,7 +111,13 @@ mod tests {
     #[test]
     fn format_large() {
         let d = chrono::TimeDelta::nanoseconds(
-            1 * D + 2 * H + 3 * M + 4 * S + 5 * MS + 6 * US + 7 * NS,
+            1 * DAY_NS
+                + 2 * HOUR_NS
+                + 3 * MINUTE_NS
+                + 4 * SECOND_NS
+                + 5 * MS_NS
+                + 6 * US_NS
+                + 7 * NS,
         );
         assert_eq!("1d2h3m4s5ms6us7ns", d.as_short_format());
     }
@@ -106,20 +126,26 @@ mod tests {
     fn parse_large() {
         let actual = chrono::TimeDelta::from_short_format("1d2h3m4s5ms6us7ns").unwrap();
         let d = chrono::TimeDelta::nanoseconds(
-            1 * D + 2 * H + 3 * M + 4 * S + 5 * MS + 6 * US + 7 * NS,
+            1 * DAY_NS
+                + 2 * HOUR_NS
+                + 3 * MINUTE_NS
+                + 4 * SECOND_NS
+                + 5 * MS_NS
+                + 6 * US_NS
+                + 7 * NS,
         );
         assert_eq!(actual, d);
     }
 
     #[test]
     fn format_3() {
-        let d = chrono::TimeDelta::nanoseconds(D + M + MS);
+        let d = chrono::TimeDelta::nanoseconds(DAY_NS + MINUTE_NS + MS_NS);
         assert_eq!("1d1m1ms", d.as_short_format());
     }
 
     #[test]
     fn parse_3() {
-        let d = chrono::TimeDelta::nanoseconds(D + M + MS);
+        let d = chrono::TimeDelta::nanoseconds(DAY_NS + MINUTE_NS + MS_NS);
         let actual = TimeDelta::from_short_format("1d1m1ms").unwrap();
         assert_eq!(actual, d);
     }
@@ -139,27 +165,36 @@ mod tests {
 
     #[test]
     fn format_neg_small() {
-        let d = chrono::TimeDelta::nanoseconds(-3 * H);
+        let d = chrono::TimeDelta::nanoseconds(-3 * HOUR_NS);
         assert_eq!("-3h", d.as_short_format());
     }
 
     #[test]
     fn parse_neg_small() {
-        let d = chrono::TimeDelta::nanoseconds(-3 * H);
+        let d = chrono::TimeDelta::nanoseconds(-3 * HOUR_NS);
         let actual = TimeDelta::from_short_format("-3h").unwrap();
         assert_eq!(actual, d);
     }
 
     #[test]
     fn format_neg_large() {
-        let d = chrono::TimeDelta::nanoseconds(-(D + H + M + S + MS + US + NS));
+        let d = chrono::TimeDelta::nanoseconds(
+            -(DAY_NS + HOUR_NS + MINUTE_NS + SECOND_NS + MS_NS + US_NS + NS),
+        );
         assert_eq!("-1d1h1m1s1ms1us1ns", d.as_short_format());
     }
 
     #[test]
     fn parse_neg_large() {
-        let d = chrono::TimeDelta::nanoseconds(-(D + H + M + S + MS + US + NS));
+        let d = chrono::TimeDelta::nanoseconds(
+            -(DAY_NS + HOUR_NS + MINUTE_NS + SECOND_NS + MS_NS + US_NS + NS),
+        );
         let actual = TimeDelta::from_short_format("-1d1h1m1s1ms1us1ns").unwrap();
         assert_eq!(actual, d);
+    }
+
+    #[test]
+    fn fail_on_not_full_match() {
+        assert!(TimeDelta::from_short_format("1dxxx").is_err());
     }
 }

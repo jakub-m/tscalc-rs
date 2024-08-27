@@ -1,4 +1,3 @@
-- Handle timestmap as input, same as of datetime
 - Handle (parse and return) complex durations like 1d2h3m4s. Round to seconds.
 - WHen eval list fails, show position in the input where it failed.
 - Add exhaustive tests for mixture of dates and datetimesa.

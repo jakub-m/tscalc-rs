@@ -1,5 +1,6 @@
 use std::{
     env,
+    error::Error,
     io::{self, BufRead},
     process,
 };
@@ -11,8 +12,8 @@ use chrono::SubsecRound;
 use parser::{eval_to_datetime, parse_expr};
 use std::fmt::Write;
 
-fn main() {
-    let args = parse_cli_args();
+fn main() -> Result<(), Box<dyn Error>> {
+    let args = parse_cli_args()?;
     if args.print_help {
         print_help();
         process::exit(0);
@@ -40,7 +41,8 @@ fn main() {
                 }
             }
         }
-    }
+    };
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -50,14 +52,14 @@ struct Args {
     expression: Option<String>,
 }
 
-fn parse_cli_args() -> Args {
+fn parse_cli_args() -> Result<Args, String> {
     let mut output = Args {
         output_format: OutputFormat::ISO,
         print_help: false,
         expression: None,
     };
     let args: Vec<String> = env::args().collect();
-    let mut i = 0;
+    let mut i = 1;
     let mut found_sentinel = false;
     loop {
         if i >= args.len() {
@@ -85,10 +87,12 @@ fn parse_cli_args() -> Args {
             }
         } else if param == "--" {
             found_sentinel = true;
+        } else {
+            return Err(format!("unknown param {:?}", param));
         }
         i = i + 1;
     }
-    output
+    Ok(output)
 }
 
 fn print_help() {

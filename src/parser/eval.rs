@@ -3,15 +3,21 @@ use crate::log::debug_log;
 use super::{full_day, full_hour, Node, Oper};
 use chrono::{DateTime, FixedOffset};
 
-pub fn eval_to_datetime(
+#[derive(Debug, PartialEq)]
+pub enum EvaluationResult {
+    TimeDelta(chrono::TimeDelta),
+    DateTime(chrono::DateTime<chrono::FixedOffset>),
+}
+
+pub fn evaluate(
     node: Node,
     now: chrono::DateTime<chrono::FixedOffset>,
-) -> Result<DateTime<FixedOffset>, String> {
+) -> Result<EvaluationResult, String> {
     debug_log(format!("eval_to_date node {:?}", node));
     match eval(&State::None, &node, now) {
         Ok(state) => match state {
-            State::DateTime(datetime) => Ok(datetime),
-            State::TimeDelta(_) => Err("the result of evaluation was duration".to_string()),
+            State::DateTime(datetime) => Ok(EvaluationResult::DateTime(datetime)),
+            State::TimeDelta(delta) => Ok(EvaluationResult::TimeDelta(delta)),
             State::None => Err("BUG: the result of evaluation was State::None".to_string()),
         },
         Err(m) => Err(m),
@@ -131,13 +137,13 @@ fn eval_func_ary1(name: &String, arg1: &State) -> Result<State, String> {
 #[cfg(test)]
 mod tests {
     use super::super::parse_expr;
-    use super::eval_to_datetime;
+    use super::{evaluate, EvaluationResult};
 
     #[test]
     fn parse_and_eval_sums() {
         let input = "1d + 2h + 2000-01-01T00:00:00Z + 3m + 4s".to_string();
         let result_node = parse_expr(&input).unwrap().node;
-        let result = eval_to_datetime(result_node, now());
+        let result = evaluate(result_node, now());
         assert!(result.is_ok(), "result not ok: {:?}", result);
         assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-02T02:03:04Z"))
     }
@@ -146,7 +152,7 @@ mod tests {
     fn parse_and_eval_diff_duration() {
         let input = "1d + 2h + 2000-01-01T00:00:00Z - 1d - 2h".to_string();
         let result_node = parse_expr(&input).unwrap().node;
-        let result = eval_to_datetime(result_node, now());
+        let result = evaluate(result_node, now());
         assert!(result.is_ok(), "result not ok");
         assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-01T00:00:00Z"))
     }
@@ -156,7 +162,7 @@ mod tests {
         let input =
             "1999-01-01T01:00:00Z - 1999-01-01T00:00:00Z + 2000-01-01T00:00:00Z".to_string();
         let result_node = parse_expr(&input).unwrap().node;
-        let result = eval_to_datetime(result_node, now());
+        let result = evaluate(result_node, now());
         assert!(result.is_ok(), "result not ok");
         assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-01T01:00:00Z"))
     }
@@ -167,13 +173,13 @@ mod tests {
             "1s + 1999-01-01T01:00:00Z - 1m - 1999-01-01T00:00:00Z + -2s + 2000-01-01T00:00:00Z"
                 .to_string();
         let result_node = parse_expr(&input).unwrap().node;
-        let result = eval_to_datetime(result_node, now());
+        let result = evaluate(result_node, now());
         assert!(result.is_ok(), "result not ok");
         assert_eq!(result.unwrap(), parse_from_rfc3339("2000-01-01T00:58:59Z"))
     }
 
-    fn parse_from_rfc3339(s: &str) -> chrono::DateTime<chrono::FixedOffset> {
-        chrono::DateTime::parse_from_rfc3339(s).unwrap()
+    fn parse_from_rfc3339(s: &str) -> EvaluationResult {
+        EvaluationResult::DateTime(chrono::DateTime::parse_from_rfc3339(s).unwrap())
     }
 
     fn now() -> chrono::DateTime<chrono::FixedOffset> {

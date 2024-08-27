@@ -9,7 +9,7 @@ mod log;
 
 mod parser;
 use chrono::SubsecRound;
-use parser::{eval_to_datetime, parse_expr};
+use parser::{evaluate, parse_expr, ShortFormat};
 use std::fmt::Write;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -130,18 +130,18 @@ fn parse_and_eval(
         return Err(m);
     }
     let parse_ok = parse_result.unwrap();
-    let eval_result = eval_to_datetime(parse_ok.node, now);
-    if let Err(message) = eval_result {
-        return Err(message);
-    }
-    return Ok(match output_format {
-        OutputFormat::ISO => eval_result.unwrap().to_rfc3339(),
-        OutputFormat::EPOCH_SECONDS => {
-            format!(
-                "{:.3}",
-                (eval_result.unwrap().timestamp_millis() as f64) / 1000.0
-            )
-        }
+    let eval_result = evaluate(parse_ok.node, now)?;
+    return Ok(match eval_result {
+        parser::EvaluationResult::DateTime(datetime) => match output_format {
+            OutputFormat::ISO => datetime.to_rfc3339(),
+            OutputFormat::EPOCH_SECONDS => {
+                format!("{:.3}", (datetime.timestamp_millis() as f64) / 1000.0)
+            }
+        },
+        parser::EvaluationResult::TimeDelta(delta) => match output_format {
+            OutputFormat::ISO => delta.as_short_format(),
+            OutputFormat::EPOCH_SECONDS => todo!(),
+        },
     });
 }
 

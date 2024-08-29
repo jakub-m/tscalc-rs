@@ -85,6 +85,11 @@ fn parse_cli_args() -> Result<Args, String> {
                 output_format: OutputFormat::EPOCH_SECONDS,
                 ..output
             }
+        } else if param == "-S" {
+            output = Args {
+                output_format: OutputFormat::FULL_EPOCH_SECONDS,
+                ..output
+            }
         } else if param == "--" {
             found_sentinel = true;
         } else {
@@ -104,6 +109,7 @@ Built-in functions:
 - full_hour\tReturn full hour of the date-time.
 
 -s\tOutput time as epoch seconds.
+-S\tOutput time as epoch seconds, without the decimal part.
 -h\tPrint this help.
 --\tAfter this sentinel, concatenate all the arguments into a single expression.
 ";
@@ -114,6 +120,7 @@ Built-in functions:
 enum OutputFormat {
     ISO,
     EPOCH_SECONDS,
+    FULL_EPOCH_SECONDS,
 }
 
 fn parse_and_eval(
@@ -137,10 +144,12 @@ fn parse_and_eval(
             OutputFormat::EPOCH_SECONDS => {
                 format!("{:.3}", (datetime.timestamp_millis() as f64) / 1000.0)
             }
+            OutputFormat::FULL_EPOCH_SECONDS => format!("{}", (datetime.timestamp_millis() / 1000)),
         },
         parser::EvaluationResult::TimeDelta(delta) => match output_format {
             OutputFormat::ISO => delta.as_short_format(),
             OutputFormat::EPOCH_SECONDS => todo!("display delta as seconds"),
+            OutputFormat::FULL_EPOCH_SECONDS => todo!("display delta as full seconds"),
         },
     });
 }

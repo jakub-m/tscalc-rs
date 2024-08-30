@@ -22,25 +22,29 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Intentionally truncate to seconds to make the calculator more practical (although less precise).
     let now = chrono::Utc::now().trunc_subsecs(0);
 
-    if let Some(input) = args.expression {
-        match parse_and_eval(&input, args.output_format, now.into()) {
+    let print_result_or_exit = |eval_result: Result<String, String>| {
+        match eval_result {
             Ok(output) => println!("{}", output),
             Err(message) => {
                 println!("{}", message);
                 process::exit(1);
             }
-        }
-    } else {
+        };
+    };
+
+    if let Some(input) = args.expression {
+        let eval_result = parse_and_eval(&input, args.output_format, now.into());
+        print_result_or_exit(eval_result);
+    } else if args.read_from_stdin {
         for line in stdin.lock().lines() {
             let line = line.unwrap();
-            match parse_and_eval(&line, args.output_format, now.into()) {
-                Ok(output) => println!("{}", output),
-                Err(message) => {
-                    println!("{}", message);
-                    process::exit(1);
-                }
-            }
+            let eval_result = parse_and_eval(&line, args.output_format, now.into());
+            print_result_or_exit(eval_result);
         }
+    } else {
+        let input = "now".to_string();
+        let eval_result = parse_and_eval(&input, args.output_format, now.into());
+        print_result_or_exit(eval_result);
     };
     Ok(())
 }
@@ -50,6 +54,7 @@ struct Args {
     output_format: OutputFormat,
     print_help: bool,
     expression: Option<String>,
+    read_from_stdin: bool,
 }
 
 fn parse_cli_args() -> Result<Args, String> {
@@ -57,6 +62,7 @@ fn parse_cli_args() -> Result<Args, String> {
         output_format: OutputFormat::ISO,
         print_help: false,
         expression: None,
+        read_from_stdin: false,
     };
     let args: Vec<String> = env::args().collect();
     let mut i = 1;
@@ -75,6 +81,11 @@ fn parse_cli_args() -> Result<Args, String> {
                 ),
                 ..output
             }
+        } else if param == "-i" {
+            output = Args {
+                read_from_stdin: true,
+                ..output
+            };
         } else if param == "-h" {
             output = Args {
                 print_help: true,
@@ -108,6 +119,7 @@ Built-in functions:
 - full_day\tReturn full day of the date-time.
 - full_hour\tReturn full hour of the date-time.
 
+-i\tRead input from stdin and process line by line.
 -s\tOutput time as epoch seconds.
 -S\tOutput time as epoch seconds, without the decimal part.
 -h\tPrint this help.

@@ -3,12 +3,15 @@ use std::{
     error::Error,
     io::{self, BufRead},
     process,
+    str::FromStr,
 };
 
 mod log;
 
 mod parser;
 use chrono::SubsecRound;
+use chrono_tz;
+use chrono_tz::{Tz, UTC};
 use parser::{evaluate, parse_expr, ShortFormat};
 use std::fmt::Write;
 
@@ -20,8 +23,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     let stdin = io::stdin();
     // Intentionally truncate to seconds to make the calculator more practical (although less precise).
-    let now = chrono::Utc::now().trunc_subsecs(0);
-
+    let now = chrono::Utc::now()
+        .trunc_subsecs(0)
+        .with_timezone(&args.timezone.unwrap_or(UTC));
     let print_result_or_exit = |eval_result: Result<String, String>| {
         match eval_result {
             Ok(output) => println!("{}", output),
@@ -33,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     if let Some(input) = args.expression {
-        let eval_result = parse_and_eval(&input, args.output_format, now.into());
+        let eval_result = parse_and_eval(&input, args.output_format, now);
         print_result_or_exit(eval_result);
     } else if args.read_from_stdin {
         for line in stdin.lock().lines() {
@@ -49,12 +53,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[derive(Debug)]
+// #[derive(Debug)]
 struct Args {
     output_format: OutputFormat,
     print_help: bool,
     expression: Option<String>,
     read_from_stdin: bool,
+    //timezone: chrono::FixedOffset,
+    timezone: Option<Tz>,
 }
 
 fn parse_cli_args() -> Result<Args, String> {
@@ -63,11 +69,13 @@ fn parse_cli_args() -> Result<Args, String> {
         print_help: false,
         expression: None,
         read_from_stdin: false,
+        timezone: None,
     };
     let args: Vec<String> = env::args().collect();
     let mut found_sentinel = false;
-    let iter_args = args.iter();
-    for arg in iter_args {
+    let mut iter_args = args.iter();
+    iter_args.next();
+    while let Some(arg) = iter_args.next() {
         if found_sentinel {
             output = Args {
                 expression: Some(output.expression.map_or(arg.to_owned(), |s| s + " " + arg)),
@@ -91,6 +99,15 @@ fn parse_cli_args() -> Result<Args, String> {
         } else if arg == "-S" {
             output = Args {
                 output_format: OutputFormat::FULL_EPOCH_SECONDS,
+                ..output
+            }
+        } else if arg == "-tz" {
+            let tz_str = iter_args.next().ok_or("expected timezone".to_string())?;
+            let tz = Tz::from_str(&tz_str).map_err(|err: chrono_tz::ParseError| {
+                format!("failed to parse {:?}: {}", tz_str, err)
+            })?;
+            output = Args {
+                timezone: Some(tz),
                 ..output
             }
         } else if arg == "--" {
@@ -129,7 +146,7 @@ enum OutputFormat {
 fn parse_and_eval(
     input: &String,
     output_format: OutputFormat,
-    now: chrono::DateTime<chrono::FixedOffset>,
+    now: chrono::DateTime<Tz>,
 ) -> Result<String, String> {
     let parse_result = parse_expr(input);
     if let Err(parse_err) = parse_result {
@@ -159,6 +176,8 @@ fn parse_and_eval(
 
 #[cfg(test)]
 mod tests {
+    use chrono_tz::{Tz, UTC};
+
     use crate::parse_and_eval;
 
     #[test]
@@ -250,7 +269,9 @@ mod tests {
         }
     }
 
-    fn now() -> chrono::DateTime<chrono::FixedOffset> {
-        chrono::DateTime::parse_from_rfc3339("2001-01-01T01:01:01Z").unwrap()
+    fn now() -> chrono::DateTime<Tz> {
+        chrono::DateTime::parse_from_rfc3339("2001-01-01T01:01:01Z")
+            .unwrap()
+            .with_timezone(&UTC)
     }
 }

@@ -1,18 +1,15 @@
 use crate::log::debug_log;
 
 use super::{full_day, full_hour, Node, Oper};
-use chrono::{DateTime, FixedOffset};
+use chrono_tz::Tz;
 
 #[derive(Debug, PartialEq)]
 pub enum EvaluationResult {
     TimeDelta(chrono::TimeDelta),
-    DateTime(chrono::DateTime<chrono::FixedOffset>),
+    DateTime(chrono::DateTime<Tz>),
 }
 
-pub fn evaluate(
-    node: Node,
-    now: chrono::DateTime<chrono::FixedOffset>,
-) -> Result<EvaluationResult, String> {
+pub fn evaluate(node: Node, now: chrono::DateTime<Tz>) -> Result<EvaluationResult, String> {
     debug_log(format!("eval_to_date node {:?}", node));
     match eval(&State::None, &node, now) {
         Ok(state) => match state {
@@ -27,16 +24,12 @@ pub fn evaluate(
 #[derive(Clone, Copy, Debug)]
 pub enum State {
     TimeDelta(chrono::TimeDelta),
-    DateTime(chrono::DateTime<chrono::FixedOffset>),
+    DateTime(chrono::DateTime<Tz>),
     None,
 }
 
 /// Evaluation works by modifying state with node.
-fn eval(
-    state: &State,
-    node: &Node,
-    now: chrono::DateTime<chrono::FixedOffset>,
-) -> Result<State, String> {
+fn eval(state: &State, node: &Node, now: chrono::DateTime<Tz>) -> Result<State, String> {
     debug_log(format!("eval input: {:?} {:?}", state, node));
     let eval_result = match node {
         Node::Expr(nodes) => eval_expr(&state, &nodes, now),
@@ -75,11 +68,7 @@ fn eval(
     eval_result
 }
 
-fn eval_expr(
-    state: &State,
-    nodes: &Vec<Node>,
-    now: chrono::DateTime<chrono::FixedOffset>,
-) -> Result<State, String> {
+fn eval_expr(state: &State, nodes: &Vec<Node>, now: chrono::DateTime<Tz>) -> Result<State, String> {
     let mut state = (*state).clone();
     for node in nodes {
         state = eval(&state, node, now)?;
@@ -92,7 +81,7 @@ fn apply_oper_node(
     state: &State,
     oper: &Oper,
     node: &Node,
-    now: chrono::DateTime<chrono::FixedOffset>,
+    now: chrono::DateTime<Tz>,
 ) -> Result<State, String> {
     let sub_state = eval(&State::None, node, now)?;
     if let (State::DateTime(left), Oper::Minus, State::DateTime(right)) = (&state, oper, &sub_state)
@@ -136,6 +125,8 @@ fn eval_func_ary1(name: &String, arg1: &State) -> Result<State, String> {
 
 #[cfg(test)]
 mod tests {
+    use chrono_tz::{Tz, UTC};
+
     use super::super::parse_expr;
     use super::{evaluate, EvaluationResult};
 
@@ -179,10 +170,16 @@ mod tests {
     }
 
     fn parse_from_rfc3339(s: &str) -> EvaluationResult {
-        EvaluationResult::DateTime(chrono::DateTime::parse_from_rfc3339(s).unwrap())
+        EvaluationResult::DateTime(
+            chrono::DateTime::parse_from_rfc3339(s)
+                .unwrap()
+                .with_timezone(&UTC),
+        )
     }
 
-    fn now() -> chrono::DateTime<chrono::FixedOffset> {
-        chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z").unwrap()
+    fn now() -> chrono::DateTime<Tz> {
+        chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono_tz::UTC)
     }
 }

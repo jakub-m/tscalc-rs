@@ -4,7 +4,8 @@ use super::{
 };
 use crate::log::debug_nested_log;
 use chrono::{self, TimeDelta};
-use regex::{Captures, Regex};
+use chrono_tz::UTC;
+use regex::Regex;
 use std::rc::Rc;
 
 pub fn parse_expr<'a>(input: &'a String) -> Result<ParseOk<'a>, ParseErr<'a>> {
@@ -212,7 +213,7 @@ impl Parser for Timestamp {
         match chrono::DateTime::from_timestamp(unix_secs, unix_nsecs) {
             Some(d) => Ok(ParseOk {
                 pointer: pointer.advance(match_len),
-                node: Node::DateTime(d.into()),
+                node: Node::DateTime(d.with_timezone(&UTC)),
             }),
             None => Err(ParseErr {
                 pointer,
@@ -244,7 +245,7 @@ impl Parser for DateTime {
         if let Ok(d) = chrono::DateTime::parse_from_rfc3339(match_) {
             return Ok(ParseOk {
                 pointer: pointer.advance(match_.len()),
-                node: Node::DateTime(d),
+                node: Node::DateTime(d.with_timezone(&UTC)),
             });
         } else {
             return Err(ParseErr {
@@ -508,10 +509,6 @@ impl Literal {
     fn set_skip(self) -> Literal {
         Literal { skip: true, ..self }
     }
-
-    fn skip(&self) -> bool {
-        self.skip
-    }
 }
 
 impl Parser for Literal {
@@ -610,7 +607,7 @@ impl Parser for LiteralNode {
     fn parse<'a>(
         &self,
         pointer: InputPointer<'a>,
-        nesting: usize,
+        _nesting: usize,
     ) -> Result<ParseOk<'a>, ParseErr<'a>> {
         if pointer.rest().starts_with(&self.literal) {
             Ok(ParseOk {
@@ -636,6 +633,7 @@ mod tests {
     use crate::parser::{DAY_NS, HOUR_NS, SECOND_NS};
     use chrono;
     use chrono::{Duration, TimeDelta};
+    use chrono_tz::UTC;
     use std::rc::Rc;
 
     #[test]
@@ -683,7 +681,9 @@ mod tests {
         if let Some(expected) = expected {
             assert!(result.is_ok(), "result not ok: {:?}", result);
             let actual_node = result.unwrap().node;
-            let expected = chrono::DateTime::parse_from_rfc3339(expected).unwrap();
+            let expected = chrono::DateTime::parse_from_rfc3339(expected)
+                .unwrap()
+                .with_timezone(&UTC);
             assert_eq!(actual_node, Node::DateTime(expected),);
         } else {
             assert!(result.is_err(), "result not err: {:?}", result);
@@ -1028,6 +1028,10 @@ mod tests {
     }
 
     fn datetime_node() -> Node {
-        Node::DateTime(chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap())
+        Node::DateTime(
+            chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z")
+                .unwrap()
+                .with_timezone(&UTC),
+        )
     }
 }

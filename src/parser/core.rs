@@ -1,6 +1,8 @@
 use std::fmt;
 use std::rc::Rc;
 
+use chrono_tz::Tz;
+
 /// A context passed around between the matchers, pointing where in the input is the matched now.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct InputPointer<'a> {
@@ -54,7 +56,7 @@ impl<'a> fmt::Display for InputPointer<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Duration(chrono::Duration),
-    DateTime(chrono::DateTime<chrono::FixedOffset>),
+    DateTime(chrono::DateTime<Tz>),
     /// A sequence of nodes that form an expression and can be evaluated.
     Expr(Vec<Node>),
     OperNode {

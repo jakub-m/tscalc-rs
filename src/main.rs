@@ -65,48 +65,39 @@ fn parse_cli_args() -> Result<Args, String> {
         read_from_stdin: false,
     };
     let args: Vec<String> = env::args().collect();
-    let mut i = 1;
     let mut found_sentinel = false;
-    loop {
-        if i >= args.len() {
-            break;
-        }
-        let param = args.get(i).unwrap();
+    let iter_args = args.iter();
+    for arg in iter_args {
         if found_sentinel {
             output = Args {
-                expression: Some(
-                    output
-                        .expression
-                        .map_or(param.to_owned(), |s| s + " " + param),
-                ),
+                expression: Some(output.expression.map_or(arg.to_owned(), |s| s + " " + arg)),
                 ..output
             }
-        } else if param == "-i" {
+        } else if arg == "-i" {
             output = Args {
                 read_from_stdin: true,
                 ..output
             };
-        } else if param == "-h" {
+        } else if arg == "-h" {
             output = Args {
                 print_help: true,
                 ..output
             };
-        } else if param == "-s" {
+        } else if arg == "-s" {
             output = Args {
                 output_format: OutputFormat::EPOCH_SECONDS,
                 ..output
             }
-        } else if param == "-S" {
+        } else if arg == "-S" {
             output = Args {
                 output_format: OutputFormat::FULL_EPOCH_SECONDS,
                 ..output
             }
-        } else if param == "--" {
+        } else if arg == "--" {
             found_sentinel = true;
         } else {
-            return Err(format!("unknown param {:?}", param));
+            return Err(format!("unknown param {:?}", arg));
         }
-        i = i + 1;
     }
     Ok(output)
 }

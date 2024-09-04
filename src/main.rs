@@ -26,6 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let now = chrono::Utc::now()
         .trunc_subsecs(0)
         .with_timezone(&args.timezone.unwrap_or(UTC));
+
     let print_result_or_exit = |eval_result: Result<String, String>| {
         match eval_result {
             Ok(output) => println!("{}", output),
@@ -36,18 +37,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
     };
 
+    let output_tz = args.timezone.unwrap_or(UTC);
+
     if let Some(input) = args.expression {
-        let eval_result = parse_and_eval(&input, args.output_format, now);
+        let eval_result = parse_and_eval(&input, args.output_format, &output_tz, now);
         print_result_or_exit(eval_result);
     } else if args.read_from_stdin {
         for line in stdin.lock().lines() {
             let line = line.unwrap();
-            let eval_result = parse_and_eval(&line, args.output_format, now.into());
+            let eval_result = parse_and_eval(&line, args.output_format, &output_tz, now.into());
             print_result_or_exit(eval_result);
         }
     } else {
         let input = "now".to_string();
-        let eval_result = parse_and_eval(&input, args.output_format, now.into());
+        let eval_result = parse_and_eval(&input, args.output_format, &output_tz, now.into());
         print_result_or_exit(eval_result);
     };
     Ok(())
@@ -147,6 +150,7 @@ enum OutputFormat {
 fn parse_and_eval(
     input: &String,
     output_format: OutputFormat,
+    output_tz: &chrono_tz::Tz,
     now: chrono::DateTime<Tz>,
 ) -> Result<String, String> {
     let parse_result = parse_expr(input);
@@ -161,7 +165,7 @@ fn parse_and_eval(
     let eval_result = evaluate(parse_ok.node, now)?;
     return Ok(match eval_result {
         parser::EvaluationResult::DateTime(datetime) => match output_format {
-            OutputFormat::ISO => datetime.to_rfc3339(),
+            OutputFormat::ISO => datetime.with_timezone(output_tz).to_rfc3339(),
             OutputFormat::EPOCH_SECONDS => {
                 format!("{:.3}", (datetime.timestamp_millis() as f64) / 1000.0)
             }
@@ -177,9 +181,8 @@ fn parse_and_eval(
 
 #[cfg(test)]
 mod tests {
-    use chrono_tz::{Tz, UTC};
-
     use crate::parse_and_eval;
+    use chrono_tz::{Tz, UTC};
 
     #[test]
     fn test_eval_garbage_on_right() {
@@ -259,8 +262,21 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_eval_different_tz_1() {
+        check_parse_and_eval_tz(
+            "2000-01-02T00:00:00Z",
+            Some("2000-01-01T19:00:00-05:00"),
+            &chrono_tz::US::Eastern,
+        );
+    }
+
     fn check_parse_and_eval(input: &str, expected: Option<&str>) {
-        let result = parse_and_eval(&input.to_string(), crate::OutputFormat::ISO, now());
+        check_parse_and_eval_tz(input, expected, &UTC)
+    }
+
+    fn check_parse_and_eval_tz(input: &str, expected: Option<&str>, tz: &chrono_tz::Tz) {
+        let result = parse_and_eval(&input.to_string(), crate::OutputFormat::ISO, tz, now());
         let result_str = format!("{:?}", result);
         if let Some(expected) = expected {
             let actual = result.expect(&format!("expected ok result, got: {}", result_str));

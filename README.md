@@ -24,3 +24,11 @@ It is a rewrite of [a similar toy tool in Go][ref_go].
 
 [ref_go]:https://github.com/jakub-m/toolbox/tree/main/tscalc
 
+# Bugs
+
+- The output should be in tz timezone, not in UTC:
+
+```
+% ,tscalc -tz US/Eastern -- '2024-09-04T06:00:00+00:00'
+2024-09-04T06:00:00+00:00
+```

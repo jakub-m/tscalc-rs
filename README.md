@@ -24,3 +24,15 @@ It is a rewrite of [a similar toy tool in Go][ref_go].
 
 [ref_go]:https://github.com/jakub-m/toolbox/tree/main/tscalc
 
+
+# Build
+
+```bash
+make release
+```
+
+Find the binary in:
+
+```bash
+./target/release/tscalc
+```

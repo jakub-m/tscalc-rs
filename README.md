@@ -1,4 +1,4 @@
-tscalc-rs
+tscalc
 ---------
 
 A simple date-time calculator.
@@ -16,7 +16,7 @@ Features:
 Usage:
 
 ```bash
-% ./tscalc-rs -- 'full_day(now) + (2000-01-01T00:00:00Z - 1234567890.000) + 1d - 2h - 3s'
+% ./tscalc -- 'full_day(now) + (2000-01-01T00:00:00Z - 1234567890.000) + 1d - 2h - 3s'
 2015-07-12T22:28:27+00:00
 ```
 

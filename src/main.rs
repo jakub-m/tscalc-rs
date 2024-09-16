@@ -133,7 +133,7 @@ Built-in functions:
 -i\tRead input from stdin and process line by line.
 -s\tOutput time as epoch seconds.
 -S\tOutput time as epoch seconds, without the decimal part.
--tz\tTimezone, as in https://docs.rs/chrono-tz/latest/src/chrono_tz/opt/rustwide/target/x86_64-unknown-linux-gnu/debug/build/chrono-tz-6eb5cb630fcc5a7f/out/directory.rs.html
+-tz\tTimezone like US/Eastern or Europe/Warsaw , as in https://docs.rs/chrono-tz/latest/chrono_tz/enum.Tz.html
 -h\tPrint this help.
 --\tAfter this sentinel, concatenate all the arguments into a single expression.
 ";

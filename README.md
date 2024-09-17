@@ -1,5 +1,4 @@
-tscalc
----------
+## tscalc
 
 A simple date-time calculator.
 
@@ -22,8 +21,7 @@ Usage:
 
 It is a rewrite of [a similar toy tool in Go][ref_go].
 
-[ref_go]:https://github.com/jakub-m/toolbox/tree/main/tscalc
-
+[ref_go]: https://github.com/jakub-m/toolbox/tree/main/tscalc
 
 # Build
 

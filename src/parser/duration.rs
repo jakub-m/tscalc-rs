@@ -8,7 +8,7 @@ pub const MINUTE_NS: i64 = 60 * SECOND_NS;
 pub const HOUR_NS: i64 = 60 * MINUTE_NS;
 pub const DAY_NS: i64 = 24 * HOUR_NS;
 
-const duration_regex: &str = r"^(?<neg>-)?((?<days>\d+)d)?((?<hours>\d+)h)?((?<minutes>\d+)m)?((?<secs>\d+)s)?((?<msecs>\d+)ms)?((?<usecs>\d+)us)?((?<nsecs>\d+)ns)?";
+const RE_DURATION: &str = r"^(?<neg>-)?((?<days>\d+)d)?((?<hours>\d+)h)?((?<minutes>\d+)m)?((?<secs>\d+)s)?((?<msecs>\d+)ms)?((?<usecs>\d+)us)?((?<nsecs>\d+)ns)?";
 
 pub trait ShortFormat {
     fn from_short_format(s: &str) -> Result<TimeDelta, String>;
@@ -16,7 +16,7 @@ pub trait ShortFormat {
 }
 
 pub fn match_duration(s: &str) -> Option<&str> {
-    let re = regex::Regex::new(duration_regex).unwrap();
+    let re = regex::Regex::new(RE_DURATION).unwrap();
     let m = re.find(s)?;
     if m.as_str().is_empty() {
         None
@@ -27,7 +27,7 @@ pub fn match_duration(s: &str) -> Option<&str> {
 
 impl ShortFormat for TimeDelta {
     fn from_short_format(s: &str) -> Result<TimeDelta, String> {
-        let pat = regex::Regex::new(duration_regex).unwrap();
+        let pat = regex::Regex::new(RE_DURATION).unwrap();
         let caps = if let Some(caps) = pat.captures(s) {
             if caps.get(0).unwrap().len() != s.len() {
                 return Err(format!("did not match entire input {:?}", s));

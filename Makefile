@@ -9,5 +9,7 @@ release:
 	cargo build --release
 clean:
 	rm -rf target
+install: release
+	sudo cp ./target/release/tscalc /usr/local/bin
 .phony: build run test release
 

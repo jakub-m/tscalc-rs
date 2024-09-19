@@ -34,3 +34,11 @@ Find the binary in:
 ```bash
 ./target/release/tscalc
 ```
+
+# Recipes
+
+Generate a sequence of times separated by minute in custom format:
+
+```bash
+seq 1440 | while read d; do tscalc -f %F-%H-%M -- "2024-06-01T00:00:00Z + ${d}m"; done 
+```

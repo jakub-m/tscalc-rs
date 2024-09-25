@@ -42,3 +42,8 @@ Generate a sequence of times separated by minute in custom format:
 ```bash
 seq 1440 | while read d; do tscalc -f %F-%H-%M -- "2024-06-01T00:00:00Z + ${d}m"; done 
 ```
+
+
+# TODO. Known bugs, missing features
+
+- Dates like `2024-01-01` are not recognised.

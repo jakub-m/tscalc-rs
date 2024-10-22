@@ -172,8 +172,11 @@ Built-in functions:
 
 #[derive(Clone, Copy, Debug)]
 enum OutputFormat {
+    /// ISO format for date, or string format for interval (5h6m7s)
     ISO,
+    /// Seconds, with sub-seconds e.g. 5.678
     EpochSeconds,
+    /// Full seconds, rounded down, e.g. 5
     FullEpochSeconds,
 }
 
@@ -207,8 +210,13 @@ fn parse_and_eval(
         },
         parser::EvaluationResult::TimeDelta(delta) => match output_format {
             OutputFormat::ISO => delta.as_short_format(),
-            OutputFormat::EpochSeconds => todo!("display delta as seconds"),
-            OutputFormat::FullEpochSeconds => todo!("display delta as full seconds"),
+            OutputFormat::EpochSeconds => {
+                format!("{}.{:0>9}", delta.num_seconds(), delta.subsec_nanos())
+                    .trim_end_matches(|c| c == '0')
+                    .trim_end_matches(|c| c == '.')
+                    .to_owned()
+            }
+            OutputFormat::FullEpochSeconds => format!("{}", delta.num_seconds()),
         },
     });
 }
